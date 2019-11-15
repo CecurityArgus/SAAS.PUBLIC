@@ -4,17 +4,20 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using EPAIE.REPO.LIB;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PUBLIC.API.Helpers;
+using PUBLIC.CONTROLLER.HMACAuthenticationHandler;
 
 namespace PUBLIC.API
 {
@@ -36,7 +39,7 @@ namespace PUBLIC.API
             Configuration = builder.Build();
 
             _logger = logger;
-            _logger.LogInformation("Platform Rest API started.");
+            _logger.LogInformation("PUBLIC Rest API started.");
             _env = env;
         }
 
@@ -49,12 +52,15 @@ namespace PUBLIC.API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddDbContext<EPaieRepositoryContext>(x => x.UseSqlServer(Configuration.GetConnectionString("ePayConnection"), b => b.MigrationsAssembly("EPAIE.API")));
+            services.AddScoped<IEPaieRepositoryWrapper, EPaieRepositoryWrapper>();
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                .AddApplicationPart(Assembly.Load(new AssemblyName("PUBLIC.CONTROLLER.LIB")));
 
             services.AddCors();
-
+      
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
@@ -65,8 +71,17 @@ namespace PUBLIC.API
                             .GetBytes(Configuration.GetSection("AppSettings:Token").Value)),
                         ValidateIssuer = false,
                         ValidateAudience = false
-                    };
-                });
+                    };                    
+                }).AddHMACAuthentication<HMACAuthenticationService>(o =>
+                {
+                    o.AuthorizedApplications = new List<AuthorizedApplication>();
+                    o.AuthorizedApplications.Add(new AuthorizedApplication()
+                    {
+                        ApplicationId = "_publicAPI",
+                        ApplicationSecret = "cc9a5a11-8831-4b99-9e59-bbac907c243c"
+                    });
+
+                });           
 
             services.Configure<FormOptions>(x =>
             {

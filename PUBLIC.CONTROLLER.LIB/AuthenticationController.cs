@@ -1,10 +1,9 @@
-﻿using System.Security.Claims;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PUBLIC.CONTROLLER.LIB.DTOs;
 using PUBLIC.CONTROLLER.LIB.Helpers;
-using System.Threading.Tasks;
 using System;
 
 namespace PUBLIC.CONTROLLER.LIB.Controllers
@@ -22,10 +21,10 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             _config = config;
             _logger = logger;
         }
-
+        
         [HttpPost("Authenticate")]
-        [ProducesResponseType(200, Type = typeof(DtoAuthentication.UserLoggedOn))]
-        public async Task<IActionResult> Authenticate(DtoAuthentication.LogonUser dtoLogonUser)
+        [ProducesResponseType(200, Type = typeof(DtoAuthentication.MdlUserLoggedOn))]
+        public IActionResult Authenticate(DtoAuthentication.MdlLogonUser dtoLogonUser)
         {
             try
             {

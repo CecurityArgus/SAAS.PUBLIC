@@ -3,6 +3,10 @@
 ### Added
 
 	- Created API + Controller library
+	- Authenticate function
+	- BeginOfTransfer functionality
+	- EPAIE.REPO.DLL reference
+	- Transfer error (send mail)
 
 ### Changed
 
