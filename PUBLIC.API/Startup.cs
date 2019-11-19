@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PUBLIC.API.Helpers;
-using PUBLIC.CONTROLLER.HMACAuthenticationHandler;
+using PUBLIC.CONTROLLER.LIB.Helpers;
 
 namespace PUBLIC.API
 {
@@ -60,28 +60,54 @@ namespace PUBLIC.API
                .AddApplicationPart(Assembly.Load(new AssemblyName("PUBLIC.CONTROLLER.LIB")));
 
             services.AddCors();
-      
+
+            services.AddScoped<Tenants>();
+
+            // Get access to the tenants
+            var tenants = services.BuildServiceProvider().GetService<Tenants>();
+ 
+            // Setup the JWT authentication
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
+                        // Specify what in the JWT needs to be checked 
+                        //IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Configuration.GetSection("AppSettings:Token").Value)),
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII
-                            .GetBytes(Configuration.GetSection("AppSettings:Token").Value)),
-                        ValidateIssuer = false,
-                        ValidateAudience = false
-                    };                    
-                }).AddHMACAuthentication<HMACAuthenticationService>(o =>
+
+                        // Specify the valid issue from appsettings.json
+                        ValidIssuer = Configuration["Token:Issuer"],
+
+                        // Specify the tenant API keys as the valid audiences 
+                        ValidAudiences = tenants.Select(t => t.APIKey).ToList(),
+
+                        IssuerSigningKeyResolver = (string token, SecurityToken securityToken, string kid, TokenValidationParameters validationParameters) =>
+                        {
+                            Tenant tenant = tenants.Where(t => t.APIKey == kid).FirstOrDefault();
+                            List<SecurityKey> keys = new List<SecurityKey>();
+                            if (tenant != null)
+                            {
+                                var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tenant.SecretKey));
+                                keys.Add(signingKey);
+                            }
+                            return keys;
+                        }
+                    };
+                });
+                /*.AddHMACAuthentication<HMACAuthenticationService>(o =>
                 {
                     o.AuthorizedApplications = new List<AuthorizedApplication>();
                     o.AuthorizedApplications.Add(new AuthorizedApplication()
                     {
-                        ApplicationId = "_publicAPI",
+                        ApplicationId = "PublicAPI",
                         ApplicationSecret = "cc9a5a11-8831-4b99-9e59-bbac907c243c"
                     });
 
-                });           
+                }); */          
 
             services.Configure<FormOptions>(x =>
             {
@@ -113,6 +139,9 @@ namespace PUBLIC.API
             app.UseMiddleware(typeof(ErrorHandlingMiddleware));
 
             app.UseMvc(routes => routes.MapRoute("default", "{controller=Home}/{action=Index}/{id?}"));
+
+            // Turn on authentication
+            app.UseAuthentication();
         }
     }
 }

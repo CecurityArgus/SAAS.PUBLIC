@@ -9,11 +9,14 @@ using PUBLIC.CONTROLLER.LIB.DTOs;
 using PUBLIC.CONTROLLER.LIB.Helpers;
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
 using System.Net.Http.Headers;
 using System.Net.Mail;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -56,7 +59,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
         [Authorize]
         [HttpPost("BeginOfTransfer")]
-        [ProducesResponseType(200, Type = typeof(DtoUpload.RegisterBeginOfTransfer))]
+        [ProducesResponseType(200, Type = typeof(DtoUpload.TransferRegistered))]
         [ProducesResponseType(401)]
         public IActionResult BeginOfTransfer(DtoUpload.RegisterBeginOfTransfer dtoRegisterBeginOfTransfer)
         {
@@ -75,10 +78,16 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                     throw new Exception("No files provided for the upload !");
 
                 //Get authorization token
-                var authToken = Request.Headers["Authorization"];
-                
+                string currentToken = Request.Headers["Authorization"];
+                currentToken = currentToken.Replace("Bearer ", "");
+                var currentTokenObj = new JwtSecurityTokenHandler().ReadJwtToken(currentToken);
+                var argusAuthToken = currentTokenObj.Claims.Where(c => c.Type == ClaimTypes.Authentication).FirstOrDefault();
+
+                if (string.IsNullOrWhiteSpace(argusAuthToken.Value))
+                    return Unauthorized();
+                                
                 //Get authorized subscriptions for user
-                PlatformRestApi platformRestApi = new PlatformRestApi(_platformRestApiUrl, authToken);
+                PlatformRestApi platformRestApi = new PlatformRestApi(_platformRestApiUrl, "Bearer " + argusAuthToken.Value);
                 var subscriptions = platformRestApi.GetAuthorizedSubscriptions();
 
                 if (subscriptions.Count == 0)
@@ -184,7 +193,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             }
         }
 
-        [Authorize(AuthenticationSchemes = HMACAuthenticationHandler.HMACAuthenticationDefaults.AuthenticationScheme)]
+        [Authorize]
         [HttpPost("UploadFiles")]
         [DisableRequestSizeLimit]
         public IActionResult UploadFiles()
@@ -216,7 +225,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                         if (!Directory.Exists(folderPath))
                             Directory.CreateDirectory(folderPath);
-
+                        
                         using (var stream = new FileStream(fullPath, FileMode.Create))
                         {
                             uploadFile.CopyTo(stream);
@@ -238,6 +247,12 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                         if (uploadFileInfo == null)
                             throw new Exception("Can not update the uploaded file info. File not found!");
+                        
+                        if (!string.IsNullOrWhiteSpace(uploadFileInfo.FingerPrint) && !string.IsNullOrWhiteSpace(uploadFileInfo.FingerPrintAlgorithm))
+                        {
+                            if (!CheckFileFingerprint(uploadFileInfo.FingerPrintAlgorithm, uploadFileInfo.FingerPrint, fullPath))
+                                throw new Exception("Can not update the uploaded file info. File fingerprint check failed!");
+                        }
 
                         uploadFileInfo.State = 1;
                         uploadFileInfo.FileSize = uploadedFile.fileSize;
@@ -260,6 +275,32 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                 return BadRequest(ex.Message);
             }
+        }
+
+        private bool CheckFileFingerprint(string fileInfoFingerPrintAlgorithm, string fileInfoFingerPrint, string uploadedFile)
+        {
+            var uploadedFileFingerPrint = "";
+
+            using (var stream = System.IO.File.OpenRead(uploadedFile))
+            {
+                switch (fileInfoFingerPrintAlgorithm)
+                {
+                    case "MD5":
+                        uploadedFileFingerPrint = BitConverter.ToString(MD5.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        break;
+                    case "SHA-1":
+                        uploadedFileFingerPrint = BitConverter.ToString(SHA1.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        break;
+                    case "SHA-256":
+                        uploadedFileFingerPrint = BitConverter.ToString(SHA256.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        break;
+                    case "SHA-512":
+                        uploadedFileFingerPrint = BitConverter.ToString(SHA512.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        break;
+                }
+            }
+
+            return uploadedFileFingerPrint.Equals(fileInfoFingerPrint);
         }
 
         [Authorize]
