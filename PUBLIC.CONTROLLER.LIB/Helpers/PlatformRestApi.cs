@@ -1,9 +1,8 @@
 ﻿using Newtonsoft.Json;
-using PUBLIC.CONTROLLER.LIB.DTOs;
+using PUBLIC.CONTROLLER.Helpers;
 using RestSharp;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace PUBLIC.CONTROLLER.LIB.Helpers
 {
@@ -70,19 +69,6 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
             public MdlSolution Solution { get; set; }
         }
 
-        public class MdlMailTemplate
-        {
-            public string Id { get; set; }
-            public string MailCode { get; set; }
-            public string LanguageNeutralName { get; set; }
-            public string FromAddr { get; set; }
-            public string DisplayName { get; set; }
-            public string ReplyToAddr { get; set; }
-            public string Subject { get; set; }
-            public string Body { get; set; }
-            public DateTime LastModified { get; set; }
-        }
-
         readonly RestClient Client = null;
 
         public string RestApiURL { get; set; }
@@ -108,7 +94,7 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
             {               
-                throw new Exception(response.Content);
+                throw new CecurityException("PUBLIC_API_99999", $"GetAuthorizedSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { StatusCode = response.StatusCode, Message = response.Content });
             }
             else
             {
@@ -130,7 +116,7 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
             {
-                throw new Exception(response.Content);
+                throw new CecurityException("PUBLIC_API_99999", $"PlatformSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { StatusCode = response.StatusCode, Message = response.Content });
             }
             else
             {
@@ -139,24 +125,6 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
             return subscriptions;
         }
-
-        public MdlMailTemplate GetMailTemplateByMailCodeAndReference(string mailCode, string languageNeutralName, string referenceType, string referenceId)
-        {
-            var request = new RestRequest("/Platform/PlatformMailTemplates/GetByMailCodeAndReference", Method.GET, DataFormat.Json);
-
-            request.AddQueryParameter("mailCode", mailCode);
-            request.AddQueryParameter("languageNeutralName", languageNeutralName);
-            request.AddQueryParameter("referenceType", referenceType);
-            request.AddQueryParameter("referenceId", referenceId);
-
-            var response = Client.Execute(request);
-
-            if (response.StatusCode != System.Net.HttpStatusCode.OK)
-            {
-                throw new Exception(response.Content);
-            }
-
-            return JsonConvert.DeserializeObject<MdlMailTemplate>(response.Content);
-        }
+      
     }
 }

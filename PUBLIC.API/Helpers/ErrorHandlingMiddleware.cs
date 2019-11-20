@@ -1,8 +1,9 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
+using PUBLIC.CONTROLLER.Helpers;
+using System;
 using System.Net;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
 
 namespace PUBLIC.API.Helpers
 {
@@ -37,12 +38,9 @@ namespace PUBLIC.API.Helpers
                     else if (exception is MyException)             code = HttpStatusCode.BadRequest;
             */
 
-            var result = "";
-
-            var cecurityException = exception as CecurityException;
-
-            if (cecurityException != null)
-                result = JsonConvert.SerializeObject(new { error = cecurityException.Message, code = cecurityException.Code() });
+            string result;
+            if (exception is CecurityException cecurityException)
+                result = JsonConvert.SerializeObject(new { error = cecurityException.Message, code = cecurityException.Code });
             else
                 result = JsonConvert.SerializeObject(new { error = exception.Message });
 

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using EPAIE.REPO.LIB;
+﻿using EPAIE.REPO.LIB;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -14,10 +8,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json.Serialization;
 using PUBLIC.API.Helpers;
 using PUBLIC.CONTROLLER.LIB.Helpers;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
 
 namespace PUBLIC.API
 {
@@ -65,7 +63,7 @@ namespace PUBLIC.API
 
             // Get access to the tenants
             var tenants = services.BuildServiceProvider().GetService<Tenants>();
- 
+
             // Setup the JWT authentication
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -97,23 +95,15 @@ namespace PUBLIC.API
                             return keys;
                         }
                     };
-                });
-                /*.AddHMACAuthentication<HMACAuthenticationService>(o =>
-                {
-                    o.AuthorizedApplications = new List<AuthorizedApplication>();
-                    o.AuthorizedApplications.Add(new AuthorizedApplication()
-                    {
-                        ApplicationId = "PublicAPI",
-                        ApplicationSecret = "cc9a5a11-8831-4b99-9e59-bbac907c243c"
-                    });
-
-                }); */          
+                });    
 
             services.Configure<FormOptions>(x =>
             {
                 x.ValueLengthLimit = int.MaxValue;
                 x.MultipartBodyLengthLimit = int.MaxValue;
             });
+
+            services.AddMvc().AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
 
             services.AddSwaggerDocumentation();
         }

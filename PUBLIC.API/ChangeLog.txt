@@ -5,8 +5,10 @@
 	- Created API + Controller library
 	- Authenticate function
 	- BeginOfTransfer functionality
+	- UploadFiles functionality
+	- EndOfTransfer functionality
+	- AbortTransfer functionality
 	- EPAIE.REPO.DLL reference
-	- Transfer error (send mail)
 	- Multi tenant authentication with Application ID and Username+Password
 	- Check file fingerprint if the fingerprint and algorithm are given
 

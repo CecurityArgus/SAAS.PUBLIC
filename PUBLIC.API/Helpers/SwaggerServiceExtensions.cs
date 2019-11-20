@@ -1,35 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Swashbuckle.AspNetCore.Swagger;
-using Swashbuckle.AspNetCore.SwaggerGen;
 using Swashbuckle.AspNetCore.SwaggerUI;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 
 namespace PUBLIC.API.Helpers
 {
     public static class SwaggerServiceExtensions
     {
-        public class MyHeaderFilter : IOperationFilter
-        {
-            public void Apply(Operation operation, OperationFilterContext context)
-            {
-                /*if (operation.Parameters == null)
-                    operation.Parameters = new List<IParameter>();
-
-                operation.Parameters.Add(new NonBodyParameter
-                {
-                    Name = "X-API-KEY",
-                    In = "header",
-                    Type = "string",
-                    Required = true // set to false if this is optional
-                });*/
-            }
-        }
-
         public static IServiceCollection AddSwaggerDocumentation(this IServiceCollection services)
         {
             services.AddSwaggerGen(c =>
@@ -56,8 +38,6 @@ namespace PUBLIC.API.Helpers
                 var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
 
                 c.IncludeXmlComments(xmlPath);
-
-                c.OperationFilter<MyHeaderFilter>();
             });
 
             return services;
