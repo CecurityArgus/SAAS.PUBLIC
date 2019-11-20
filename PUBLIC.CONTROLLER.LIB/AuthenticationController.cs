@@ -42,7 +42,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             try
             {
                 // Check the API key is correct
-                string requestAPIKey = Request.Headers["x-api-key"].FirstOrDefault();
+                string requestAPIKey = Request.Headers["X-ApiKey"].FirstOrDefault();
 
                 if (string.IsNullOrWhiteSpace(requestAPIKey))
                     throw new CecurityException("PUBLIC_API_00251", "No APIKey provided !");

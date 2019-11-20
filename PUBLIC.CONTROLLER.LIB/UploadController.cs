@@ -119,9 +119,9 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 }
 
                 if (!subscriptionNameValid)
-                    throw new CecurityException("PUBLIC_API_00055", $"Subscription with name '{dtoRegisterBeginOfTransfer.SolutionName}' not found or not authorized");
+                    throw new CecurityException("PUBLIC_API_00055", $"Solution with name '{dtoRegisterBeginOfTransfer.SolutionName}' not found or not authorized");
                 if (!subscriptionReferenceValid)
-                    throw new CecurityException("PUBLIC_API_00056", $"Subscription with reference '{dtoRegisterBeginOfTransfer.SolutionReference}' and name '{dtoRegisterBeginOfTransfer.SolutionName}' not found or not authorized");
+                    throw new CecurityException("PUBLIC_API_00056", $"Subscription with reference '{dtoRegisterBeginOfTransfer.SolutionReference}' and Solution '{dtoRegisterBeginOfTransfer.SolutionName}' not found or not authorized");
 
                 //Create upload folder for current transferId
                 var uploadFolder = _config["Appsettings:UploadFolder"];
@@ -163,6 +163,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [HttpPost("UploadFiles")]
         [ProducesResponseType(200)]
         [ProducesResponseType(401)]
+        [ProducesResponseType(413)]
         [ProducesResponseType(400, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult UploadFiles()
@@ -226,7 +227,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                                     if (System.IO.File.Exists(uploadedFileFullPath))
                                         System.IO.File.Delete(uploadedFileFullPath);
 
-                                    throw new CecurityException("PUBLIC_API_00105", $"Can not update the uploaded file '{uploadedFileName}'. File fingerprint check failed!", new { UploadedFile = uploadedFileName });
+                                    throw new CecurityException("PUBLIC_API_00105", $"File fingerprint check failed for file '{uploadedFileName}'", new { UploadedFile = uploadedFileName });
                                 }
                             }
                         }
@@ -289,7 +290,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                         filesNotUploaded.Add(transferFileObject.FileName);
                 }
                 if (filesNotUploaded.Count > 0)
-                    throw new CecurityException("PUBLIC_API_00154", $"Not all files have been uploaded ({string.Join(", ", filesNotUploaded)})", new { FilesNotUploaded = string.Join(", ", filesNotUploaded) });
+                    throw new CecurityException("PUBLIC_API_00151", $"Not all files have been uploaded ({string.Join(", ", filesNotUploaded)})", new { FilesNotUploaded = filesNotUploaded });
 
                 //Get authorization token
                 string currentToken = Request.Headers["Authorization"];
@@ -308,15 +309,15 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                     }
                     catch (CecurityException exception)
                     {
-                        throw new CecurityException("PUBLIC_API_00156", $"Register ePaie job error: {exception.Message}", exception.AdditionalInfo);
+                        throw new CecurityException("PUBLIC_API_00153", $"Register ePaie job error: {exception.Message}", exception.AdditionalInfo);
                     }
                     catch (Exception exception)
                     {
-                        throw new CecurityException("PUBLIC_API_00156", $"Register ePaie job error: {exception.Message}");
+                        throw new CecurityException("PUBLIC_API_00153", $"Register ePaie job error: {exception.Message}");
                     }
                 }
                 else
-                    throw new CecurityException("PUBLIC_API_00155", $"Upload for solution '{transferObject.SolutionName}' not yet implemented", new { SolutionName = transferObject.SolutionName });
+                    throw new CecurityException("PUBLIC_API_00152", $"Upload for solution '{transferObject.SolutionName}' not yet implemented", new { SolutionName = transferObject.SolutionName });
 
                 //Cleanup transfer folder
                 if (Directory.Exists(transferFolder))
@@ -365,15 +366,6 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 if (Directory.Exists(transferFolder))
                     Directory.Delete(transferFolder, true);
 
-                //Set status of current job on aborted
-                var upload = _epaieRepo.Uploads.FindByCondition(q => q.TransferId.Equals(transferId)).FirstOrDefault();
-                if (upload == null)
-                    throw new CecurityException("PUBLIC_API_00001", "Upload job not found.");
-                upload.State = 5;
-                upload.LastActionTimeStamp = DateTime.Now;
-                _epaieRepo.Uploads.Update(upload);
-                _epaieRepo.Uploads.Save();
-
                 _logger.LogInformation("AbortTransfer finished.");
 
                 return Ok();
@@ -388,7 +380,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             {
                 _logger.LogError($"Uploadfiles error: {exception.Message}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00100", Message = exception.Message });
+                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00200", Message = exception.Message });
             }
         }
 
