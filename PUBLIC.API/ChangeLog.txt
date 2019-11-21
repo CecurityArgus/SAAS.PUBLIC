@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Removed
+
+[v1.0.0 - 2019/11/21]
+
+### Added
+
 	- Created API + Controller library
 	- Authenticate function
 	- BeginOfTransfer functionality
