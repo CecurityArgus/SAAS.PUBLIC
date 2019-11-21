@@ -136,7 +136,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 catch (Exception)
                 {
                     if (Directory.Exists(transferFolder))
-                        Directory.Delete(transferFolder);
+                        Directory.Delete(transferFolder, true);
 
                     throw;
                 }
@@ -321,7 +321,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                 //Cleanup transfer folder
                 if (Directory.Exists(transferFolder))
-                    Directory.Delete(transferFolder);
+                    Directory.Delete(transferFolder, true);
 
                 _logger.LogInformation("EndOfTransfer finished");
 
@@ -453,7 +453,21 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 registeredUploadedFiles.Add(uploadedFile);
             }
 
-            RegisterEPaieJob(transferId, subscriptionId, registeredUploadedFiles, idmAuthToken, upload);
+            try
+            {
+                RegisterEPaieJob(transferId, subscriptionId, registeredUploadedFiles, idmAuthToken, upload);
+            }
+            catch (Exception)
+            {
+                //Get uploadfolder for current transfer
+                var uploadFolder = _config["Appsettings:UploadFolder"];
+                string transferFolder = Path.Combine(uploadFolder, transferId);
+                //Cleanup the folder 
+                if (Directory.Exists(transferFolder))
+                    Directory.Delete(transferFolder, true);
+
+                throw;
+            }
         }
 
         private void RegisterEPaieJob(string transferId, string subscriptionId, List<UploadedFile> uploadedFiles, string idmAuthToken, Upload upload)
