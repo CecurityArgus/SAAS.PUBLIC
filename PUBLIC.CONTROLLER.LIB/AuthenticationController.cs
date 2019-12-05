@@ -37,7 +37,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(400, Type = typeof(CecurityError))]
         public IActionResult Authenticate(DtoAuthentication.MdlLogonUser dtoLogonUser)
         {
-            _logger.LogInformation("Authenticate started");
+            _logger.LogInformation("AuthenticationController/Authenticate: Started");
 
             try
             {
@@ -56,8 +56,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                 // Get the token config from appsettings.json
                 string issuer = _config["Token:Issuer"];
-                int expiryDuration;
-                if (!int.TryParse(_config["Token:ExpiryDurationMins"], out expiryDuration))
+                if (!int.TryParse(_config["Token:ExpiryDurationMins"], out int expiryDuration))
                 {
                     expiryDuration = 30;
                 }
@@ -82,7 +81,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 }
                 catch(Exception)
                 {
-                    return Unauthorized();
+                    throw;
                 }
                 // Create and sign the token                
                 var jwtSecurityToken = new JwtSecurityToken(                    
@@ -98,22 +97,22 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 jwtSecurityToken.Header.Add("kid", requestAPIKey);
                 var token = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
 
-                _logger.LogInformation($"Authenticate finished. Token: {token}");
+                _logger.LogInformation($"AuthenticationController/Authenticate: Finished. Token: {token}");
 
                 // return the token
                 return Ok(new { AccessToken = token });                
             }
             catch (CecurityException exception)
             {
-                _logger.LogError($"Authenticate error: {exception.Message}");
+                _logger.LogError($"AuthenticationController/Authenticate: Error: {exception.Message}");
 
-                return BadRequest(new CecurityError() { Code = exception.Code, Message = exception.Message, AdditionalInfo = exception.AdditionalInfo });
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError($"Authenticate error: {exception.Message}");
+                _logger.LogError($"AuthenticationController/Authenticate: Error: {exception.Message}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00250", Message = exception.Message });
+                throw new CecurityException("PUBLIC_API_00250", exception.Message);
             }
         }
 

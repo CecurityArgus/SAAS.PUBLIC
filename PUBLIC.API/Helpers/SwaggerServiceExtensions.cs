@@ -46,7 +46,7 @@ namespace PUBLIC.API.Helpers
         public static IApplicationBuilder UseSwaggerDocumentation(this IApplicationBuilder app, IConfiguration configuration)
         {
             app.UseSwagger();
-
+   
             app.UseSwaggerUI(c =>
             {
                 var virtualDirectory = configuration["Appsettings:VirtualDirectory"];

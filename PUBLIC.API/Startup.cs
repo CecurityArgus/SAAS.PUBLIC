@@ -12,6 +12,8 @@ using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Serialization;
 using PUBLIC.API.Helpers;
 using PUBLIC.CONTROLLER.LIB.Helpers;
+using Serilog;
+using Serilog.Events;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -21,7 +23,7 @@ namespace PUBLIC.API
 {
     public class Startup
     {
-        private readonly ILogger _logger;
+        private readonly Microsoft.Extensions.Logging.ILogger _logger;
 
         public IConfiguration Configuration { get; }
 
@@ -32,6 +34,7 @@ namespace PUBLIC.API
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
                 .AddEnvironmentVariables();
 
             Configuration = builder.Build();
@@ -123,11 +126,10 @@ namespace PUBLIC.API
             }
 
             app.UseSwaggerDocumentation(Configuration);
-
             app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
             app.UseAuthentication();
             app.UseMiddleware(typeof(ErrorHandlingMiddleware));
-
+            
             app.UseMvc(routes => routes.MapRoute("default", "{controller=Home}/{action=Index}/{id?}"));
 
             // Turn on authentication

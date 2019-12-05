@@ -34,7 +34,7 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
             {
-                throw new CecurityException("PUBLIC_API_99999", $"IDM/GetByList error: Status '{response.StatusCode}', Error: '{response.Content}'", new { StatusCode = response.StatusCode, Message = response.Content });
+                throw new CecurityException("PUBLIC_API_99999", $"IDM/GetByList error: Status '{response.StatusCode}', Error: '{response.Content}'", new { response.StatusCode, Message = response.Content });
             }
 
             return JsonConvert.DeserializeObject<DtoAuthentication.MdlUserLoggedOn>(response.Content);

@@ -40,9 +40,9 @@ namespace PUBLIC.API.Helpers
 
             string result;
             if (exception is CecurityException cecurityException)
-                result = JsonConvert.SerializeObject(new { error = cecurityException.Message, code = cecurityException.Code });
+                result = JsonConvert.SerializeObject(new CecurityError() { Message = cecurityException.Message, Code = cecurityException.Code, AdditionalInfo = cecurityException.AdditionalInfo });
             else
-                result = JsonConvert.SerializeObject(new { error = exception.Message });
+                result = JsonConvert.SerializeObject(new CecurityError() { Message = exception.Message, Code = "PUBLIC_API_99999" });
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)code;

@@ -86,15 +86,14 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
         public List<MdlSubscription> GetAuthorizedSubscriptions()
         {
-            List<MdlSubscription> subscriptions = null;
-
-            var request = new RestRequest("/Platform/PlatformSubscriptions/GetAuthorizedSubscriptions", Method.GET, DataFormat.Json);
+            var request = new RestRequest("/PlatformSubscriptions/GetAuthorizedSubscriptions", Method.GET, DataFormat.Json);
 
             var response = Client.Execute(request);
 
+            List<MdlSubscription> subscriptions;
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
-            {               
-                throw new CecurityException("PUBLIC_API_99999", $"GetAuthorizedSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { StatusCode = response.StatusCode, Message = response.Content });
+            {
+                throw new CecurityException("PUBLIC_API_99999", $"GetAuthorizedSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { response.StatusCode, Message = response.Content });
             }
             else
             {
@@ -106,17 +105,16 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
         public MdlSubscription GetSubscriptionById(string subscriptionId)
         {
-            MdlSubscription subscriptions = null;
-
-            var request = new RestRequest("/Platform/PlatformSubscriptions/{id}", Method.GET, DataFormat.Json);
+            var request = new RestRequest("/PlatformSubscriptions/{id}", Method.GET, DataFormat.Json);
 
             request.AddUrlSegment("id", subscriptionId);
 
             var response = Client.Execute(request);
 
+            MdlSubscription subscriptions;
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
             {
-                throw new CecurityException("PUBLIC_API_99999", $"PlatformSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { StatusCode = response.StatusCode, Message = response.Content });
+                throw new CecurityException("PUBLIC_API_99999", $"PlatformSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { response.StatusCode, Message = response.Content });
             }
             else
             {

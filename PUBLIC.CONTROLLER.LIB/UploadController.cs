@@ -27,8 +27,6 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         private readonly ILogger _logger;
         public IEPaieRepositoryWrapper _epaieRepo;
         private readonly string _platformRestApiUrl;
-        private readonly string _idmRestApiUrl;
-        private readonly string _solutionUrl;
 
         public UploadController(IConfiguration config, ILogger<AuthenticationController> logger, IEPaieRepositoryWrapper epaieRepo)
         {
@@ -38,8 +36,6 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             _epaieRepo = epaieRepo;
 
             _platformRestApiUrl = config["AppSettings:PlatformRestApiUrl"];
-            _idmRestApiUrl = config["AppSettings:IDMRestApiUrl"];
-            _solutionUrl = config["AppSettings:SolutionUrl"];
         }
 
         #region CONTROLLERS
@@ -47,12 +43,13 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [Authorize]
         [HttpPost("BeginOfTransfer")]
         [ProducesResponseType(200, Type = typeof(DtoUpload.TransferRegistered))]
-        [ProducesResponseType(401)]
-        [ProducesResponseType(400, Type = typeof(CecurityError))]
+        [ProducesResponseType(401, Type = typeof(string))]
+        [ProducesResponseType(500, Type = typeof(CecurityError))]
         public IActionResult BeginOfTransfer(DtoUpload.RegisterBeginOfTransfer dtoRegisterBeginOfTransfer)
-        {
-            _logger.LogError($"BeginOfTransfer started");
+        {            
             string transferId = Guid.NewGuid().ToString();
+
+            _logger.LogInformation($"UploadController/BeginOfTransfer: Started. TransferId = {transferId}");
 
             try
             {
@@ -97,16 +94,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                         {
                             if (dtoRegisterBeginOfTransfer.SolutionName.ToLower().Equals("epaie"))
                             {
-                                var subscriptionParams = JsonConvert.DeserializeObject<ePaieParams>(solutionParams.Solution.Params);
+                                var subscriptionParams = JsonConvert.DeserializeObject<EPaieParams>(solutionParams.Solution.Params);
                                 subscriptionReferenceValid = subscriptionParams.SIREN.ToLower().Equals(dtoRegisterBeginOfTransfer.SolutionReference.ToLower());
 
                                 if (subscriptionReferenceValid && subscriptionNameValid)
                                 {
-                                    transferObject = new DtoUpload.TransferObject();
-                                    transferObject.SolutionName = dtoRegisterBeginOfTransfer.SolutionName;
-                                    transferObject.SolutionReference = dtoRegisterBeginOfTransfer.SolutionReference;
-                                    transferObject.UploadFiles = dtoRegisterBeginOfTransfer.UploadFiles;
-                                    transferObject.SubscriptionId = subscription.Id;
+                                    transferObject = new DtoUpload.TransferObject
+                                    {
+                                        SolutionName = dtoRegisterBeginOfTransfer.SolutionName,
+                                        SolutionReference = dtoRegisterBeginOfTransfer.SolutionReference,
+                                        UploadFiles = dtoRegisterBeginOfTransfer.UploadFiles,
+                                        SubscriptionId = subscription.Id
+                                    };
                                     break;
                                 }
                             }
@@ -141,21 +140,21 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                     throw;
                 }
 
-                _logger.LogError($"BeginOfTransfer ended. TransferId = {transferId}");
+                _logger.LogInformation($"UploadController/BeginOfTransfer: Finished. TransferId = {transferId}");
 
                 return Ok(new DtoUpload.TransferRegistered() { TransferId = transferId });
             }
             catch (CecurityException exception)
             {
-                _logger.LogError($"BeginOfTransfer error: {exception.Message}");
+                _logger.LogError($"UploadController/BeginOfTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = exception.Code, Message = exception.Message, AdditionalInfo = exception.AdditionalInfo });
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError($"BeginOfTransfer error: {exception.Message}");
+                _logger.LogError($"UploadController/BeginOfTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00050", Message = exception.Message });
+                throw new CecurityException("PUBLIC_API_00050", exception.Message);
             }
         }
 
@@ -164,20 +163,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(200)]
         [ProducesResponseType(401)]
         [ProducesResponseType(413)]
-        [ProducesResponseType(400, Type = typeof(CecurityError))]
+        [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult UploadFiles()
         {
-            _logger.LogInformation("UploadFiles started");
+            string transferId = Request.Headers["X-TransferId"].ToString();
+            if (string.IsNullOrWhiteSpace(transferId))
+                throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !");
 
-            string transferId = null;
+            _logger.LogInformation($"UploadController/UploadFiles: Started. TransferId = {transferId}");
 
             try
             {
-                transferId = Request.Headers["X-TransferId"].ToString();
-                if (string.IsNullOrWhiteSpace(transferId))
-                    throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !");
-
                 var uploadedFiles = HttpContext.Request.Form.Files;
                 if (uploadedFiles.Count() == 0)
                     throw new CecurityException("PUBLIC_API_00101", "No files provided for the upload !");
@@ -216,6 +213,8 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                             using (var stream = new FileStream(uploadedFileFullPath, FileMode.Create))
                             {
                                 uploadedFile.CopyTo(stream);
+
+                                _logger.LogInformation($"UploadController/UploadFiles: File received '{uploadedFileName}'. TransferId = {transferId}");
                             }
 
                             //See if we have to check the file fingerprint
@@ -232,23 +231,25 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                             }
                         }
                     }
+                    else
+                        _logger.LogInformation($"UploadController/UploadFiles: File '{uploadedFileName}' already uploaded, ignoring file. TransferId = {transferId}");
                 }
 
-                _logger.LogInformation("UploadFiles finished.");
+                _logger.LogInformation($"UploadController/UploadFiles: Finished. TransferId = {transferId}");
 
                 return Ok();
             }
             catch (CecurityException exception)
             {
-                _logger.LogError($"Uploadfiles error: {exception.Message}");
+                _logger.LogError($"UploadController/Uploadfiles: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = exception.Code, Message = exception.Message, AdditionalInfo = exception.AdditionalInfo });
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError($"Uploadfiles error: {exception.Message}");
+                _logger.LogError($"UploadController/Uploadfiles: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00100", Message = exception.Message });
+                throw new CecurityException("PUBLIC_API_00100", exception.Message);
             }
         }
 
@@ -256,20 +257,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [HttpPost("EndOfTransfer")]
         [ProducesResponseType(200)]
         [ProducesResponseType(401)]
-        [ProducesResponseType(400, Type = typeof(CecurityError))]
+        [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult EndOfTransfer()
         {
-            _logger.LogInformation("EndOfTransfer started.");
+            string transferId = Request.Headers["X-TransferId"].ToString();
+            if (string.IsNullOrWhiteSpace(transferId))
+                throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !");
 
-            string transferId = null;
+            _logger.LogInformation($"UploadController/EndOfTransfer: Started. TransferId = {transferId}");
 
             try
             {
-                transferId = Request.Headers["X-TransferId"].ToString();
-                if (string.IsNullOrWhiteSpace(transferId))
-                    throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !");
-
                 //Get uploadfolder for current transfer
                 var uploadFolder = _config["Appsettings:UploadFolder"];
                 string transferFolder = Path.Combine(uploadFolder, transferId);
@@ -317,27 +316,27 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                     }
                 }
                 else
-                    throw new CecurityException("PUBLIC_API_00152", $"Upload for solution '{transferObject.SolutionName}' not yet implemented", new { SolutionName = transferObject.SolutionName });
+                    throw new CecurityException("PUBLIC_API_00152", $"Upload for solution '{transferObject.SolutionName}' not yet implemented", new { transferObject.SolutionName });
 
                 //Cleanup transfer folder
                 if (Directory.Exists(transferFolder))
                     Directory.Delete(transferFolder, true);
 
-                _logger.LogInformation("EndOfTransfer finished");
+                _logger.LogInformation($"UploadController/EndOfTransfer: Finished. TransferId = {transferId}");
 
                 return Ok();
             }
             catch (CecurityException exception)
             {
-                _logger.LogError($"EndOfTransfer error: {exception.Message}");
+                _logger.LogError($"UploadController/BeginOfTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = exception.Code, Message = exception.Message, AdditionalInfo = exception.AdditionalInfo });
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError($"EndOfTransfer error: {exception.Message}");
+                _logger.LogError($"UploadController/BeginOfTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00150", Message = exception.Message });
+                throw new CecurityException("PUBLIC_API_00150", exception.Message);
             }
         }
 
@@ -345,20 +344,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [HttpPost("AbortTransfer")]
         [ProducesResponseType(200)]
         [ProducesResponseType(401)]
-        [ProducesResponseType(400, Type = typeof(CecurityError))]
+        [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult AbortTransfer()
         {
-            _logger.LogInformation("AbortTransfer started");
+            string transferId = Request.Headers["X-TransferId"].ToString();
+            if (string.IsNullOrWhiteSpace(transferId))
+                throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !", null);
 
-            string transferId = null;
+            _logger.LogInformation($"UploadController/AbortTransfer: Started. TransferId = {transferId}");
 
             try
             {
-                transferId = Request.Headers["X-TransferId"].ToString();
-                if (string.IsNullOrWhiteSpace(transferId))
-                    throw new CecurityException("PUBLIC_API_00001", "Invalid or no transfer id provided !", null);
-
                 //Get uploadfolder for current transfer
                 var uploadFolder = _config["Appsettings:UploadFolder"];
                 string transferFolder = Path.Combine(uploadFolder, transferId);
@@ -366,28 +363,28 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 if (Directory.Exists(transferFolder))
                     Directory.Delete(transferFolder, true);
 
-                _logger.LogInformation("AbortTransfer finished.");
+                _logger.LogInformation($"UploadController/AbortTransfer: Finished. TransferId = {transferId}");
 
                 return Ok();
             }
             catch (CecurityException exception)
             {
-                _logger.LogError($"Uploadfiles error: {exception.Message}");
+                _logger.LogError($"UploadController/AbortTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = exception.Code, Message = exception.Message, AdditionalInfo = exception.AdditionalInfo });
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError($"Uploadfiles error: {exception.Message}");
+                _logger.LogError($"UploadController/AbortTransfer: Error: {exception.Message}. TransferId = {transferId}");
 
-                return BadRequest(new CecurityError() { Code = "PUBLIC_API_00200", Message = exception.Message });
+                throw new CecurityException("PUBLIC_API_00200", exception.Message);
             }
         }
 
         #endregion
 
         #region EPAIE
-        public class ePaieParams
+        public class EPaieParams
         {
             public string Entreprise { get; set; }
             public string SIRET { get; set; }
@@ -487,7 +484,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             PlatformRestApi platformRestApi = new PlatformRestApi(_platformRestApiUrl, "Bearer " + idmAuthToken);
             var subscriptionWithDetails = platformRestApi.GetSubscriptionById(subscriptionId);
             var solutionParams = JsonConvert.DeserializeObject<PlatformRestApi.MdlSolutionParams>(subscriptionWithDetails.SolutionParams);
-            var subscriptionParams = JsonConvert.DeserializeObject<ePaieParams>(solutionParams.Solution.Params);
+            var subscriptionParams = JsonConvert.DeserializeObject<EPaieParams>(solutionParams.Solution.Params);
 
             PlatformRestApi.MdlConnector easConnector = null;
 
@@ -514,7 +511,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             var totalFiles = uploadedFiles.Count;
 
             if (accompanyingFile)
-                totalFiles = totalFiles / 2;
+                totalFiles /= 2;
 
             var previousFile = "";
 
@@ -570,9 +567,9 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                 _epaieRepo.Jobs.CreateJobAsync(newJob).Wait();
 
-                _logger.LogInformation($"UploadController/EndOfTransfer: Created new job, jobId = {newJob.Id}");
+                _logger.LogInformation($"UploadController/EndOfTransfer: Created new job, jobId = {newJob.Id}. TransferId = {transferId}");
             }
-            _logger.LogInformation($"UploadController/EndOfTransfer: Job = {JsonConvert.SerializeObject(newJob)}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: Job = {JsonConvert.SerializeObject(newJob)}. TransferId = {transferId}");
 
             // Create job summary if not exist
             JobSummary newJobSummary = _epaieRepo.JobSummaries.FindByCondition(a => a.JobId.Equals(newJob.Id)).FirstOrDefault();
@@ -590,19 +587,19 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
                 _epaieRepo.JobSummaries.CreateJobSummaryAsync(newJobSummary).Wait();
 
-                _logger.LogInformation($"UploadController/EndOfTransfer: Created new job summary");
+                _logger.LogInformation($"UploadController/EndOfTransfer: Created new job summary. TransferId = {transferId}");
             }
-            _logger.LogInformation($"UploadController/EndOfTransfer: Job summary = {JsonConvert.SerializeObject(newJobSummary)}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: Job summary = {JsonConvert.SerializeObject(newJobSummary)}. TransferId = {transferId}");
 
             // Create new job and copy the files to A4SB
 
-            _logger.LogInformation($"UploadController/EndOfTransfer: Create information package");
+            _logger.LogInformation($"UploadController/EndOfTransfer: Create information package. TransferId = {transferId}");
 
             var ip = new InformationPackage.ip();
 
-            _logger.LogInformation($"UploadController/EndOfTransfer: before customer info");
+            _logger.LogInformation($"UploadController/EndOfTransfer: before customer info. TransferId = {transferId}");
             ip.customer = easConnector != null && easConnectorParams != null && !string.IsNullOrEmpty(easConnectorParams.CustomerKey) && !string.IsNullOrEmpty(easConnectorParams.CustomerName) ? new InformationPackage.customer() { name = easConnectorParams.CustomerName, key = easConnectorParams.CustomerKey, solution = "EPaie" } : new InformationPackage.customer() { name = "EPAIE UPLOAD", key = "100030", solution = "EPaie" };
-            _logger.LogInformation($"UploadController/EndOfTransfer: after customer info");
+            _logger.LogInformation($"UploadController/EndOfTransfer: after customer info. TransferId = {transferId}");
 
             ip.tickets = new InformationPackage.tickets { rootTicket = newJob.Id, dataTicket = newJob.Id };
             ip.type = "dsip";
@@ -610,11 +607,11 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             ip.dataset = new InformationPackage.dataset { type = "argus/file", data = new List<string>() };
 
             var a4SbFolderForValidationOrArchiving = _config["Appsettings:A4SBFolderForValidationOrArchiving"];
-            _logger.LogInformation($"UploadController/EndOfTransfer: A4SBFolderForValidationOrArchiving = {a4SbFolderForValidationOrArchiving}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: A4SBFolderForValidationOrArchiving = {a4SbFolderForValidationOrArchiving}. TransferId = {transferId}");
             var a4SbFolderForWinScp = _config["Appsettings:A4SBFolderForWinSCP"];
-            _logger.LogInformation($"UploadController/EndOfTransfer: A4SBFolderForWinSCP = {a4SbFolderForWinScp}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: A4SBFolderForWinSCP = {a4SbFolderForWinScp}. TransferId = {transferId}");
             var uploadFolder = _config["Appsettings:UploadFolder"];
-            _logger.LogInformation($"UploadController/EndOfTransfer: UploadFolder = {uploadFolder}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: UploadFolder = {uploadFolder}. TransferId = {transferId}");
 
             PlatformRestApi.MdlOption archiveOrValidation = null;
 
@@ -622,7 +619,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 archiveOrValidation = solutionParams.Options.FirstOrDefault(q =>
                    (q.Name.Equals("Validation") && q.Value == 1) || (q.Name.Equals("Archiving") && q.Value == 1));
 
-            _logger.LogInformation($"UploadController/EndOfTransfer: ArchiveOrValidation = {archiveOrValidation}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: ArchiveOrValidation = {archiveOrValidation}. TransferId = {transferId}");
 
             var destinationFolder = a4SbFolderForValidationOrArchiving;
 
@@ -640,7 +637,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 var sourceFile = Path.Combine(Path.Combine(uploadFolder, transferId), file.OriginalFileName);
                 var destinationFile = Path.Combine(destinationFolder, file.NewFileName);
 
-                _logger.LogInformation($"UploadController/EndOfTransfer: Moving file, source = {sourceFile}, destination = {destinationFile}");
+                _logger.LogInformation($"UploadController/EndOfTransfer: Moving file, source = {sourceFile}, destination = {destinationFile}. TransferId = {transferId}");
 
                 System.IO.File.Move(sourceFile, destinationFile);
 
@@ -649,13 +646,13 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
             var ipFile = Path.Combine(destinationFolder, Guid.NewGuid().ToString().Replace("-", "") + ".dsp");
 
-            _logger.LogInformation($"UploadController/EndOfTransfer: Saving information package to {ipFile}");
+            _logger.LogInformation($"UploadController/EndOfTransfer: Saving information package to {ipFile}. TransferId = {transferId}");
 
             // Save the information package
             InformationPackage.SaveIP(ip, ipFile);
 
             // Save job
-            _logger.LogInformation($"UploadController/EndOfTransfer: Saving job");
+            _logger.LogInformation($"UploadController/EndOfTransfer: Saving job. TransferId = {transferId}");
 
             _epaieRepo.Jobs.SaveAsync().Wait();
         }
@@ -672,16 +669,28 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 switch (fileInfoFingerPrintAlgorithm)
                 {
                     case "MD5":
-                        uploadedFileFingerPrint = BitConverter.ToString(MD5.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        using (MD5 md5Hash = MD5.Create())
+                        {
+                            uploadedFileFingerPrint = BitConverter.ToString(md5Hash.ComputeHash(stream)).Replace("-", "").ToLower();
+                        }
                         break;
                     case "SHA-1":
-                        uploadedFileFingerPrint = BitConverter.ToString(SHA1.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        using (SHA1 sha1Hash = SHA1.Create())
+                        {
+                            uploadedFileFingerPrint = BitConverter.ToString(sha1Hash.ComputeHash(stream)).Replace("-", "").ToLower();
+                        }
                         break;
                     case "SHA-256":
-                        uploadedFileFingerPrint = BitConverter.ToString(SHA256.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        using (SHA256 sha256Hash = SHA256.Create())
+                        {
+                            uploadedFileFingerPrint = BitConverter.ToString(sha256Hash.ComputeHash(stream)).Replace("-", "").ToLower();
+                        }
                         break;
                     case "SHA-512":
-                        uploadedFileFingerPrint = BitConverter.ToString(SHA512.Create().ComputeHash(stream)).Replace("-", "").ToLower();
+                        using (SHA512 sha512Hash = SHA512.Create())
+                        {
+                            uploadedFileFingerPrint = BitConverter.ToString(sha512Hash.ComputeHash(stream)).Replace("-", "").ToLower();
+                        }
                         break;
                 }
             }

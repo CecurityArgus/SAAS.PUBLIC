@@ -2,6 +2,10 @@
 
 ### Added
 
+	- Serilog : log to file
+	- Code review for better error handling
+	- ERROR_CODES: unhandled exception
+
 ### Changed
 
 ### Removed
