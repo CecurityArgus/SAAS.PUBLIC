@@ -20,20 +20,20 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
     {
         private readonly IConfiguration _config;
         private readonly ILogger _logger;
-        private readonly Tenants _tenants;
+        private readonly ApiKeys _apiKeys;
 
-        public AuthenticationController(IConfiguration config, ILogger<AuthenticationController> logger, Tenants tenants)
+        public AuthenticationController(IConfiguration config, ILogger<AuthenticationController> logger, ApiKeys apiKeys)
         {
             _config = config;
             _logger = logger;
-            _tenants = tenants;
+            _apiKeys = apiKeys;
         }
 
         #region CONTROLLERS
 
         [HttpPost("Authenticate")]
         [ProducesResponseType(200, Type = typeof(DtoAuthentication.MdlAuthenticated))]
-        [ProducesResponseType(401)]
+        [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(400, Type = typeof(CecurityError))]
         public IActionResult Authenticate(DtoAuthentication.MdlLogonUser dtoLogonUser)
         {
@@ -47,10 +47,12 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 if (string.IsNullOrWhiteSpace(requestAPIKey))
                     throw new CecurityException("PUBLIC_API_00251", "No APIKey provided !");
 
-                var tenant = _tenants.Where(t => t.APIKey.ToLower() == requestAPIKey.ToLower()).FirstOrDefault();
+                var apiKeys = _apiKeys.GetApiKeys();
+                var apiKey = apiKeys.Where(t => t.Key.ToLower() == requestAPIKey.ToLower() && t.State.Equals(1)).FirstOrDefault();
 
-                if (tenant == null)
+                if (apiKey == null)
                 {
+                    _logger.LogInformation($"AuthenticationController/Authenticate: apiKey '{requestAPIKey}' not found or not active (state=1)");
                     return Unauthorized();
                 }
 
@@ -90,7 +92,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                     claims: claims.ToArray(),
                     expires: expiry,
                     signingCredentials: new SigningCredentials(
-                        new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tenant.SecretKey)),
+                        new SymmetricSecurityKey(Encoding.UTF8.GetBytes(apiKey.Secret)),
                         SecurityAlgorithms.HmacSha256
                     )
                 );

@@ -8,6 +8,8 @@
 
 ### Changed
 
+	- Using platform apikeys instead of in code tenants for the allowed ApiKeys
+
 ### Removed
 
 [v1.0.0 - 2019/11/21]

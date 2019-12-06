@@ -161,7 +161,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [Authorize]
         [HttpPost("UploadFiles")]
         [ProducesResponseType(200)]
-        [ProducesResponseType(401)]
+        [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(413)]
         [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
@@ -256,7 +256,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [Authorize]
         [HttpPost("EndOfTransfer")]
         [ProducesResponseType(200)]
-        [ProducesResponseType(401)]
+        [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult EndOfTransfer()
@@ -343,7 +343,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [Authorize]
         [HttpPost("AbortTransfer")]
         [ProducesResponseType(200)]
-        [ProducesResponseType(401)]
+        [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(500, Type = typeof(CecurityError))]
         [DisableRequestSizeLimit]
         public IActionResult AbortTransfer()

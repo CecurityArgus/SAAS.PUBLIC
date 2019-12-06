@@ -123,6 +123,25 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
 
             return subscriptions;
         }
-      
+
+        public List<ApiKey> GetApiKeys()
+        {
+            var request = new RestRequest("/PlatformApiKeys", Method.GET, DataFormat.Json);
+
+            var response = Client.Execute(request);
+
+            List<ApiKey> apiKeys = new List<ApiKey>();
+
+            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+            {
+                throw new CecurityException("PUBLIC_API_99999", $"PlatformSubscriptions error: Status '{response.StatusCode}', Error: '{response.Content}'", new { response.StatusCode, Message = response.Content });
+            }
+            else
+            {
+                apiKeys = JsonConvert.DeserializeObject<List<ApiKey>>(response.Content);
+            }
+
+            return apiKeys;
+        }
     }
 }

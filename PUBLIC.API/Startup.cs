@@ -27,7 +27,7 @@ namespace PUBLIC.API
 
         public IConfiguration Configuration { get; }
 
-        private readonly IHostingEnvironment _env;
+        //private readonly IHostingEnvironment _env;
 
         public Startup(IHostingEnvironment env, ILogger<Startup> logger)
         {
@@ -41,20 +41,21 @@ namespace PUBLIC.API
 
             _logger = logger;
             _logger.LogInformation("PUBLIC Rest API started.");
-            _env = env;
+            //_env = env;
         }
 
         public Startup(IConfiguration configuration)
         {
             this.Configuration = configuration;
-
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+
             services.AddDbContext<EPaieRepositoryContext>(x => x.UseSqlServer(Configuration.GetConnectionString("ePayConnection"), b => b.MigrationsAssembly("EPAIE.API")));
             services.AddScoped<IEPaieRepositoryWrapper, EPaieRepositoryWrapper>();
+            services.AddScoped<ApiKeys>();
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
@@ -62,10 +63,7 @@ namespace PUBLIC.API
 
             services.AddCors();
 
-            services.AddScoped<Tenants>();
-
-            // Get access to the tenants
-            var tenants = services.BuildServiceProvider().GetService<Tenants>();
+            var apiKeys = new ApiKeys(this.Configuration);
 
             // Setup the JWT authentication
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -74,7 +72,6 @@ namespace PUBLIC.API
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         // Specify what in the JWT needs to be checked 
-                        //IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Configuration.GetSection("AppSettings:Token").Value)),
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
@@ -84,15 +81,15 @@ namespace PUBLIC.API
                         ValidIssuer = Configuration["Token:Issuer"],
 
                         // Specify the tenant API keys as the valid audiences 
-                        ValidAudiences = tenants.Select(t => t.APIKey).ToList(),
+                        ValidAudiences = apiKeys.GetApiKeys().Select(a => a.Key).ToList(),
 
                         IssuerSigningKeyResolver = (string token, SecurityToken securityToken, string kid, TokenValidationParameters validationParameters) =>
                         {
-                            Tenant tenant = tenants.Where(t => t.APIKey == kid).FirstOrDefault();
+                            ApiKey apiKey = apiKeys.GetApiKeys().Where(t => t.Key == kid && t.State.Equals(1)).FirstOrDefault();
                             List<SecurityKey> keys = new List<SecurityKey>();
-                            if (tenant != null)
+                            if (apiKey != null)
                             {
-                                var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tenant.SecretKey));
+                                var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(apiKey.Secret));
                                 keys.Add(signingKey);
                             }
                             return keys;
