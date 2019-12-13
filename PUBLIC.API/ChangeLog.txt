@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Removed
+
+[v1.0.1 - 2019/13/12]
+
+### Added
+
 	- Serilog : log to file
 	- Code review for better error handling
 	- ERROR_CODES: unhandled exception
