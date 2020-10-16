@@ -1,35 +1,35 @@
-﻿using EPAIE.REPO.LIB;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
+using MQDispatch.Client;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using PUBLIC.API.Helpers;
-using PUBLIC.CONTROLLER.LIB.Helpers;
-using Serilog;
-using Serilog.Events;
+using PUBLIC.CONTROLLER.LIB.Security;
+using PUBLIC.SERVICE.LIB.Helpers;
+using RabbitMQ.Client;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
+using static PUBLIC.SERVICE.LIB.Helpers.MQErrors;
 
 namespace PUBLIC.API
 {
     public class Startup
     {
+        private IConfiguration Conf { get; }
         private readonly Microsoft.Extensions.Logging.ILogger _logger;
 
-        public IConfiguration Configuration { get; }
-
-        //private readonly IHostingEnvironment _env;
-
-        public Startup(IHostingEnvironment env, ILogger<Startup> logger)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="env"></param>
+        /// <param name="logger"></param>
+        public Startup(IWebHostEnvironment env, ILogger<Startup> logger)
         {
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
@@ -37,100 +37,122 @@ namespace PUBLIC.API
                 .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
                 .AddEnvironmentVariables();
 
-            Configuration = builder.Build();
+            Conf = builder.Build();
 
             _logger = logger;
             _logger.LogInformation("PUBLIC Rest API started.");
-            //_env = env;
+
+            var messageDict = new Dictionary<string, object>();
+            var referenceDict = new Dictionary<string, object>();
+            var factory = new ConnectionFactory { Uri = new Uri(Conf["RabbitMQConnection:Uri"]) };
+            using var rabbitMqPersistentConnection = new RabbitMqPersistentConnection(factory, System.Reflection.Assembly.GetExecutingAssembly().GetName().Name, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+                System.Diagnostics.Process.GetCurrentProcess().ProcessName, System.Diagnostics.Process.GetCurrentProcess().Id.ToString(), JsonConvert.SerializeObject(MQErrorMessages));
+            rabbitMqPersistentConnection.SendApplicationInfoMessage((int)MQMessages.APP_INF_APPLICATIONSTARTED, messageDict, referenceDict);
         }
 
-        public Startup(IConfiguration configuration)
-        {
-            this.Configuration = configuration;
-        }
-
-        // This method gets called by the runtime. Use this method to add services to the container.
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
         {
-
-            services.AddDbContext<EPaieRepositoryContext>(x => x.UseSqlServer(Configuration.GetConnectionString("ePayConnection"), b => b.MigrationsAssembly("EPAIE.API")));
-            services.AddScoped<IEPaieRepositoryWrapper, EPaieRepositoryWrapper>();
             services.AddScoped<ApiKeys>();
+            var apiKeys = new ApiKeys(Conf);
 
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
-               .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
-               .AddApplicationPart(Assembly.Load(new AssemblyName("PUBLIC.CONTROLLER.LIB")));
+            // RabbitMq
+            services.AddTransient<IRabbitMqPersistentConnection, RabbitMqPersistentConnection>(sp =>
+            {
+                var factory = new ConnectionFactory { Uri = new Uri(Conf["RabbitMQConnection:Uri"]) };
+                return new RabbitMqPersistentConnection(factory, System.Reflection.Assembly.GetExecutingAssembly().GetName().Name, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+                    System.Diagnostics.Process.GetCurrentProcess().ProcessName, System.Diagnostics.Process.GetCurrentProcess().Id.ToString(), JsonConvert.SerializeObject(MQErrorMessages));
+            });
 
-            services.AddCors();
+            // Add framework services.
+            services.AddMvc(options =>
+            {
+                options.InputFormatters.RemoveType<Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonInputFormatter>();
+                options.OutputFormatters.RemoveType<Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonOutputFormatter>();
+            })
+            .AddNewtonsoftJson(opts =>
+            {
+                opts.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+            })
+            .ConfigureApiBehaviorOptions(options =>
+            {
+                options.SuppressMapClientErrors = true;
+            });
 
-            var apiKeys = new ApiKeys(this.Configuration);
-
-            // Setup the JWT authentication
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAny",
+                builder =>
                 {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        // Specify what in the JWT needs to be checked 
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
+                    // Not a permanent solution, but just trying to isolate the problem
+                    builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                });
+            });
 
-                        // Specify the valid issue from appsettings.json
-                        ValidIssuer = Configuration["Token:Issuer"],
+            services.AddAuthentication(BearerAuthenticationHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, BearerAuthenticationHandler>(BearerAuthenticationHandler.SchemeName, null);
 
-                        // Specify the tenant API keys as the valid audiences 
-                        ValidAudiences = apiKeys.GetApiKeys().Select(a => a.Key).ToList(),
+            services.AddSwaggerDocumentation();
 
-                        IssuerSigningKeyResolver = (string token, SecurityToken securityToken, string kid, TokenValidationParameters validationParameters) =>
-                        {
-                            ApiKey apiKey = apiKeys.GetApiKeys().Where(t => t.Key == kid && t.State.Equals(1)).FirstOrDefault();
-                            List<SecurityKey> keys = new List<SecurityKey>();
-                            if (apiKey != null)
-                            {
-                                var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(apiKey.Secret));
-                                keys.Add(signingKey);
-                            }
-                            return keys;
-                        }
-                    };
-                });    
-
+            // Setting to override multipart limits
             services.Configure<FormOptions>(x =>
             {
                 x.ValueLengthLimit = int.MaxValue;
                 x.MultipartBodyLengthLimit = int.MaxValue;
             });
 
-            services.AddMvc().AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
-
-            services.AddSwaggerDocumentation();
+            services.AddHealthChecks()
+                .AddCheck<HealthCheckRabbitMQContext>("RabbitMQ context check");
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="app"></param>
+        /// <param name="env"></param>
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
+            app.UseMiddleware<SerilogMiddleware>();
+
+            app.UseMiddleware<ErrorHandlingMiddleware>();
+
+            app.UseRouting();
+
+            app.UseCors("AllowAny");
+
+            app.UseAuthorization();
+
+            app.UseEndpoints(endpoints =>
             {
-                app.UseDeveloperExceptionPage();
-                app.UseSwaggerDocumentation(Configuration);
+                endpoints.MapControllers().RequireCors("AllowAny");
+            });
+
+            //TODO: Enable production exception handling (https://docs.microsoft.com/en-us/aspnet/core/fundamentals/error-handling)
+            app.UseExceptionHandler("/error");
+
+            if (!env.EnvironmentName.ToLower().Equals("production"))
+            {
+                app.UseSwaggerDocumentation(Conf);
             }
             else
             {
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-                //app.UseHsts();
+                app.UseHsts();
+                app.UseHttpsRedirection();
             }
 
-            app.UseSwaggerDocumentation(Configuration);
-            app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-            app.UseAuthentication();
-            app.UseMiddleware(typeof(ErrorHandlingMiddleware));
-            
-            app.UseMvc(routes => routes.MapRoute("default", "{controller=Home}/{action=Index}/{id?}"));
-
-            // Turn on authentication
-            app.UseAuthentication();
+            app.UseHealthChecks("/health", new HealthCheckOptions
+            {
+                ResponseWriter = async (context, report) =>
+                {
+                    context.Response.ContentType = "application/json";
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(report));
+                    await context.Response.Body.WriteAsync(bytes);
+                }
+            });
         }
     }
 }
