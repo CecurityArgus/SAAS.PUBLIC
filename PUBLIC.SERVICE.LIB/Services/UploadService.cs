@@ -652,6 +652,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             var platformResellerApi = new PlatformResellersApi(_platformConfig);
 
             var data = new List<Metrics.Api.Client.Model.NameValuePair>();
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId });
 
@@ -664,11 +665,14 @@ namespace PUBLIC.SERVICE.LIB.Services
                     data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = resellersObject.Key, Value = resellersObject.Value.ToString() });
             }
 
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SIREN", Value = subscriptionParams.SIREN });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = newJobSummary.NbrOfFiles.ToString() });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDep", Value = totalBytesDep.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
 
             CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EPAIE, data, _config);
 
@@ -956,8 +960,9 @@ namespace PUBLIC.SERVICE.LIB.Services
             InformationPackage.SaveIP(ip, ipFile);
 
             var data = new List<Metrics.Api.Client.Model.NameValuePair>();
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.TransferId });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId });
 
             var platformResellerApi = new PlatformResellersApi(_platformConfig);
 
@@ -970,11 +975,14 @@ namespace PUBLIC.SERVICE.LIB.Services
                     data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = resellersObject.Key, Value = resellersObject.Value.ToString() });
             }
 
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SIREN", Value = subscriptionParams.SIREN });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = newJobSummary.NbrOfFiles.ToString() });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDep", Value = totalBytesDep.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
 
             CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EFACTURE, data, _config);
 

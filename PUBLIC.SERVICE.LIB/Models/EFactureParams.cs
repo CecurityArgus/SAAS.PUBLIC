@@ -41,6 +41,16 @@ namespace PUBLIC.SERVICE.LIB.Models
         ///
         /// </summary>
         public List<EFactureInputFormat> AllowedInputFormats { get; set; }
+
+        /// <summary>
+        ///
+        /// </summary>
+        public string EntiteFacturable { get; set; }
+
+        /// <summary>
+        ///
+        /// </summary>
+        public string NombreEmployes { get; set; }
     }
 
     /// <summary>
