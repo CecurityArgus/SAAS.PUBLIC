@@ -42,7 +42,7 @@ namespace PUBLIC.API.Helpers
                 rabbitMqPersistentConnection.SendApplicationErrorMessage(cecurityException.Code(), cecurityException);
             }
 
-            _logger.LogError(cecurityException.Code(), cecurityException.Message, cecurityException.InnerException);
+            _logger.LogError(cecurityException, cecurityException.Message);
 
             var result = JsonConvert.SerializeObject(new
             {

@@ -23,6 +23,7 @@ namespace PUBLIC.API
     {
         private IConfiguration Conf { get; }
         private readonly Microsoft.Extensions.Logging.ILogger _logger;
+        private RabbitMqPersistentConnection _rabbitMqPersistentConnection;
 
         /// <summary>
         /// 
@@ -45,9 +46,9 @@ namespace PUBLIC.API
             var messageDict = new Dictionary<string, object>();
             var referenceDict = new Dictionary<string, object>();
             var factory = new ConnectionFactory { Uri = new Uri(Conf["RabbitMQConnection:Uri"]) };
-            using var rabbitMqPersistentConnection = new RabbitMqPersistentConnection(factory, System.Reflection.Assembly.GetExecutingAssembly().GetName().Name, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+            _rabbitMqPersistentConnection = new RabbitMqPersistentConnection(factory, System.Reflection.Assembly.GetExecutingAssembly().GetName().Name, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(),
                 System.Diagnostics.Process.GetCurrentProcess().ProcessName, System.Diagnostics.Process.GetCurrentProcess().Id.ToString(), JsonConvert.SerializeObject(MQErrorMessages));
-            rabbitMqPersistentConnection.SendApplicationInfoMessage((int)MQMessages.APP_INF_APPLICATIONSTARTED, messageDict, referenceDict);
+            _rabbitMqPersistentConnection.SendApplicationInfoMessage((int)MQMessages.APP_INF_APPLICATIONSTARTED, messageDict, referenceDict);
         }
 
         /// <summary>
@@ -60,11 +61,9 @@ namespace PUBLIC.API
             var apiKeys = new ApiKeys(Conf);
 
             // RabbitMq
-            services.AddTransient<IRabbitMqPersistentConnection, RabbitMqPersistentConnection>(sp =>
+            services.AddSingleton<IRabbitMqPersistentConnection, RabbitMqPersistentConnection>(sp =>
             {
-                var factory = new ConnectionFactory { Uri = new Uri(Conf["RabbitMQConnection:Uri"]) };
-                return new RabbitMqPersistentConnection(factory, System.Reflection.Assembly.GetExecutingAssembly().GetName().Name, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(),
-                    System.Diagnostics.Process.GetCurrentProcess().ProcessName, System.Diagnostics.Process.GetCurrentProcess().Id.ToString(), JsonConvert.SerializeObject(MQErrorMessages));
+                return _rabbitMqPersistentConnection;
             });
 
             // Add framework services.

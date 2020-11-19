@@ -627,6 +627,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             uploadedFiles = epaieUploadsApi.EPAIEEPaieUploadFilesGet(upload.Id);
 
             long totalBytesDep = 0;
+            int totalFilesDeposited = 0;
 
             foreach (var file in uploadedFiles)
             {
@@ -636,8 +637,12 @@ namespace PUBLIC.SERVICE.LIB.Services
                 _logger.LogInformation($"UploadController/EndOfTransfer: Moving file, source = {sourceFile}, destination = {destinationFile}. TransferId = {transferId}");
 
                 System.IO.File.Move(sourceFile, destinationFile);
-                
-                totalBytesDep += new System.IO.FileInfo(destinationFile).Length;
+
+                if (destinationFile.ToLower().EndsWith(".pdf"))
+                {
+                    totalFilesDeposited++;
+                    totalBytesDep += new System.IO.FileInfo(destinationFile).Length;
+                }
 
                 ip.dataset.data.Add(System.IO.Path.GetFileName(destinationFile));
             }
@@ -668,7 +673,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = newJobSummary.NbrOfFiles.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = totalFilesDeposited.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
@@ -937,6 +942,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             uploadedFiles = efactureUploadsApi.EFACTUREEFactureUploadFilesGet(upload.Id);
 
             long totalBytesDep = 0;
+            int totalFilesDeposited = 0;
 
             foreach (var file in uploadedFiles)
             {
@@ -947,7 +953,11 @@ namespace PUBLIC.SERVICE.LIB.Services
 
                 System.IO.File.Move(sourceFile, destinationFile);
 
-                totalBytesDep += new System.IO.FileInfo(destinationFile).Length;
+                if (destinationFile.ToLower().EndsWith(".pdf"))
+                {
+                    totalFilesDeposited++;
+                    totalBytesDep += new System.IO.FileInfo(destinationFile).Length;
+                }
 
                 ip.dataset.data.Add(System.IO.Path.GetFileName(destinationFile));
             }
@@ -978,7 +988,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = newJobSummary.NbrOfFiles.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = totalFilesDeposited.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
