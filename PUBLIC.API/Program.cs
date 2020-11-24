@@ -12,13 +12,17 @@ namespace PUBLIC.API
     {
         public static void Main(string[] args)
         {
-            var environment = System.Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT").Trim();
+            var environment = System.Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var jsonFile = "appsettings.json";
+            if (!string.IsNullOrEmpty(environment))
+                jsonFile = $"appsettings.{environment.Trim()}.json";
 
-            var configuration = new ConfigurationBuilder()
+            var builder = new ConfigurationBuilder()
                 .SetBasePath(System.IO.Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{environment}.json", optional: true)
-                .Build();
+                .AddJsonFile(jsonFile, optional: false, reloadOnChange: true)
+                .AddEnvironmentVariables();
+
+            var configuration = builder.Build();
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(configuration)

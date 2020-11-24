@@ -32,10 +32,14 @@ namespace PUBLIC.API
         /// <param name="logger"></param>
         public Startup(IWebHostEnvironment env, ILogger<Startup> logger)
         {
+            var environment = env.EnvironmentName;
+            var jsonFile = "appsettings.json";
+            if (!string.IsNullOrEmpty(environment))
+                jsonFile = $"appsettings.{environment.Trim()}.json";
+
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
+                .AddJsonFile(jsonFile, optional: false, reloadOnChange: true)
                 .AddEnvironmentVariables();
 
             Conf = builder.Build();
