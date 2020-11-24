@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace PUBLIC.CONTROLLER.LIB.Helpers
+﻿namespace PUBLIC.SERVICE.LIB.Helpers
 {
     public class ApiKey
     {

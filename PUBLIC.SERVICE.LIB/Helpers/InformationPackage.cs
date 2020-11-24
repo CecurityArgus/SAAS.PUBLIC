@@ -5,51 +5,116 @@ using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace PUBLIC.CONTROLLER.LIB.Helpers
+namespace PUBLIC.SERVICE.LIB.Helpers
 {
+    /// <summary>
+    ///
+    /// </summary>
     public class Utf8StringWriter : StringWriter
     {
+        /// <summary>
+        ///
+        /// </summary>
         public override Encoding Encoding => Encoding.UTF8;
     }
 
+    /// <summary>
+    ///
+    /// </summary>
     public static class InformationPackage
     {
+        /// <summary>
+        ///
+        /// </summary>
         public class dataset
         {
+            /// <summary>
+            ///
+            /// </summary>
             [XmlAttribute(AttributeName = "type")]
             public string type { get; set; }
 
+            /// <summary>
+            ///
+            /// </summary>
             [XmlElement]
             public List<String> data { get; set; }
-
         }
 
+        /// <summary>
+        ///
+        /// </summary>
         public class tickets
         {
+            /// <summary>
+            ///
+            /// </summary>
             public string rootTicket { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public string dataTicket { get; set; }
         }
 
+        /// <summary>
+        ///
+        /// </summary>
         public class customer
         {
+            /// <summary>
+            ///
+            /// </summary>
             public string key { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public string name { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public string solution { get; set; }
         }
 
+        /// <summary>
+        ///
+        /// </summary>
         [XmlRoot("ip")]
         public class ip
         {
+            /// <summary>
+            ///
+            /// </summary>
             [XmlAttribute(AttributeName = "type")]
             public string type { get; set; }
 
+            /// <summary>
+            ///
+            /// </summary>
             [XmlAttribute(AttributeName = "version")]
             public string version { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public dataset dataset { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public tickets tickets { get; set; }
+
+            /// <summary>
+            ///
+            /// </summary>
             public customer customer { get; set; }
         }
 
+        /// <summary>
+        ///
+        /// </summary>
         public static ip LoadIP(string filename)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(ip));
@@ -61,6 +126,9 @@ namespace PUBLIC.CONTROLLER.LIB.Helpers
             return ip;
         }
 
+        /// <summary>
+        ///
+        /// </summary>
         public static void SaveIP(ip ip, string filename)
         {
             var xmlString = "";

@@ -12,16 +12,34 @@ namespace PUBLIC.API
     {
         public static void Main(string[] args)
         {
-            var configuration = new ConfigurationBuilder()
-               .SetBasePath(Directory.GetCurrentDirectory())
-                       .AddJsonFile("appsettings.json", false, true)
-                       .Build();
+            var environment = System.Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var jsonFile = "appsettings.json";
+            if (!string.IsNullOrEmpty(environment))
+                jsonFile = $"appsettings.{environment.Trim()}.json";
+
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(System.IO.Directory.GetCurrentDirectory())
+                .AddJsonFile(jsonFile, optional: false, reloadOnChange: true)
+                .AddEnvironmentVariables();
+
+            var configuration = builder.Build();
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(configuration)
-                .CreateLogger();
+               .CreateLogger();
 
-            CreateWebHostBuilder(args).Build().Run();
+            try
+            {
+                CreateWebHostBuilder(args).Build().Run();
+            }
+            catch (System.Exception ex)
+            {
+                Log.Fatal(ex, "Application start-up failed");
+            }
+            finally
+            {
+                Log.CloseAndFlush();
+            }
         }
 
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
