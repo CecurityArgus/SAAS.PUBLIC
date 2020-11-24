@@ -673,11 +673,12 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = totalFilesDeposited.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrDepositedFiles", Value = totalFilesDeposited.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositTime", Value = newJob.JobStarted.ToString(System.Globalization.CultureInfo.InvariantCulture) });
 
             CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EPAIE, data, _config);
 
@@ -988,11 +989,12 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "Siren", Value = subscriptionParams.SIREN });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "ClientCode", Value = subscriptionParams.CodeClient });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "MgmtCode", Value = subscriptionParams.CodeAgence });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositedFiles", Value = totalFilesDeposited.ToString() });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrDepositedFiles", Value = totalFilesDeposited.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TotalBytesDeposited", Value = totalBytesDep.ToString() });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "CompanyName", Value = subscriptionParams.Entreprise });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "BillingReseller", Value = subscriptionParams.EntiteFacturable });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
+            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositTime", Value = newJob.JobStarted.ToString(System.Globalization.CultureInfo.InvariantCulture) });
 
             CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EFACTURE, data, _config);
 
