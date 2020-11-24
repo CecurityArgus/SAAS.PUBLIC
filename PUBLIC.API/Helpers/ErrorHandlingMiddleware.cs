@@ -1,51 +1,58 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using MQDispatch.Client;
 using Newtonsoft.Json;
-using PUBLIC.CONTROLLER.Helpers;
+using Platform.Framework;
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using static PUBLIC.SERVICE.LIB.Helpers.MQErrors;
 
 namespace PUBLIC.API.Helpers
 {
-    public class ErrorHandlingMiddleware
+    internal class ErrorHandlingMiddleware
     {
-        private readonly RequestDelegate next;
+        private readonly RequestDelegate _next;
+        private static ILogger _logger;
 
-        public ErrorHandlingMiddleware(RequestDelegate next)
+        public ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
         {
-            this.next = next;
+            _next = next;
+            _logger = logger;
         }
 
-        public async Task Invoke(HttpContext context /* other dependencies */)
+        public async Task Invoke(HttpContext context, IRabbitMqPersistentConnection rabbitMqPersistentConnection)
         {
             try
             {
-                await next(context);
+                await _next(context);
             }
             catch (Exception ex)
             {
-                await HandleExceptionAsync(context, ex);
+                await HandleExceptionAsync(context, ex, rabbitMqPersistentConnection);
             }
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private static Task HandleExceptionAsync(HttpContext context, Exception exception, IRabbitMqPersistentConnection rabbitMqPersistentConnection)
         {
-            var code = HttpStatusCode.InternalServerError; // 500 if unexpected
+            if (!(exception is CecurityException cecurityException))
+            {
+                cecurityException = new CecurityException((int)MQMessages.APP_ERR_UNHANDLED, exception.Message, exception.InnerException);
 
-            /* 
-                    if      (exception is MyNotFoundException)     code = HttpStatusCode.NotFound;
-                    else if (exception is MyUnauthorizedException) code = HttpStatusCode.Unauthorized;
-                    else if (exception is MyException)             code = HttpStatusCode.BadRequest;
-            */
+                rabbitMqPersistentConnection.SendApplicationErrorMessage(cecurityException.Code(), cecurityException);
+            }
 
-            string result;
-            if (exception is CecurityException cecurityException)
-                result = JsonConvert.SerializeObject(new CecurityError() { Message = cecurityException.Message, Code = cecurityException.Code, AdditionalInfo = cecurityException.AdditionalInfo });
-            else
-                result = JsonConvert.SerializeObject(new CecurityError() { Message = exception.Message, Code = "PUBLIC_API_99999" });
+            _logger.LogError(cecurityException, cecurityException.Message);
+
+            var result = JsonConvert.SerializeObject(new
+            {
+                error = cecurityException.Message,
+                code = cecurityException.Code(),
+                additionalInfo = cecurityException.AdditionalInfo()
+            });
 
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)code;
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             return context.Response.WriteAsync(result);
         }
     }
