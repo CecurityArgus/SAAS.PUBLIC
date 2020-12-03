@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
-using PUBLIC.API.Filters;
 using PUBLIC.CONTROLLER.LIB.Security;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using System;

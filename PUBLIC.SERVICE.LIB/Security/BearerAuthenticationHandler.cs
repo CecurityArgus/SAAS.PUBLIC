@@ -28,6 +28,7 @@ namespace PUBLIC.CONTROLLER.LIB.Security
         public const string SchemeName = "Bearer";
 
         private readonly IConfiguration _configuration;
+        private readonly ApiKeys _apiKeys;
 
         /// <summary>
         ///
@@ -37,9 +38,10 @@ namespace PUBLIC.CONTROLLER.LIB.Security
         /// <param name="encoder"></param>
         /// <param name="clock"></param>
         /// <param name="configuration"></param>
-        public BearerAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, IConfiguration configuration) : base(options, logger, encoder, clock)
+        public BearerAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, IConfiguration configuration, ApiKeys apiKeys) : base(options, logger, encoder, clock)
         {
             _configuration = configuration;
+            _apiKeys = apiKeys;
         }
 
         /// <summary>
@@ -61,7 +63,7 @@ namespace PUBLIC.CONTROLLER.LIB.Security
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var validationParameters = GetValidationParameters();
 
-                IPrincipal principal = tokenHandler.ValidateToken(authHeader.Parameter, validationParameters, out SecurityToken validatedToken);
+                IPrincipal principal = await Task.Run(() => tokenHandler.ValidateToken(authHeader.Parameter, validationParameters, out SecurityToken validatedToken));
 
                 var ticket = new AuthenticationTicket((ClaimsPrincipal)principal, Scheme.Name);
 
@@ -75,8 +77,6 @@ namespace PUBLIC.CONTROLLER.LIB.Security
 
         private TokenValidationParameters GetValidationParameters()
         {
-            var apiKeys = new ApiKeys(_configuration);
-
             return new TokenValidationParameters()
             {
                 // Specify what in the JWT needs to be checked 
@@ -87,13 +87,12 @@ namespace PUBLIC.CONTROLLER.LIB.Security
                 ClockSkew = TimeSpan.Zero,
                 // Specify the valid issue from appsettings.json
                 ValidIssuer = _configuration["Token:Issuer"],
-
                 // Specify the tenant API keys as the valid audiences 
-                ValidAudiences = apiKeys.GetApiKeys().Select(a => a.Key).ToList(),
+                ValidAudiences = _apiKeys.GetApiKeys().Select(a => a.Key).ToList(),
 
                 IssuerSigningKeyResolver = (string token, SecurityToken securityToken, string kid, TokenValidationParameters validationParameters) =>
                 {
-                    ApiKey apiKey = apiKeys.GetApiKeys().Where(t => t.Key == kid && t.State.Equals(1)).FirstOrDefault();
+                    ApiKey apiKey = _apiKeys.GetApiKeys().Where(t => t.Key == kid && t.State.Equals(1)).FirstOrDefault();
                     List<SecurityKey> keys = new List<SecurityKey>();
                     if (apiKey != null)
                     {

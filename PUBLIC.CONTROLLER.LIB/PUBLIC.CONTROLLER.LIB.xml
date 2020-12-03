@@ -9,13 +9,12 @@
             
             </summary>
         </member>
-        <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController.#ctor(Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController},PUBLIC.SERVICE.LIB.Helpers.ApiKeys)">
+        <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController.#ctor(Microsoft.Extensions.Logging.ILogger{PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController},PUBLIC.SERVICE.LIB.Services.AuthenticationsService)">
             <summary>
             
             </summary>
-            <param name="config"></param>
             <param name="logger"></param>
-            <param name="apiKeys"></param>
+            <param name="authenticationsService"></param>
         </member>
         <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController.Authenticate(PUBLIC.CONTROLLER.LIB.DTOs.DtoAuthentication.MdlLogonUser)">
             <summary>
@@ -29,14 +28,12 @@
             
             </summary>
         </member>
-        <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.UploadController.#ctor(Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController},PUBLIC.SERVICE.LIB.Helpers.ApiKeys,MQDispatch.Client.IRabbitMqPersistentConnection)">
+        <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.UploadController.#ctor(Microsoft.Extensions.Logging.ILogger{PUBLIC.CONTROLLER.LIB.Controllers.AuthenticationController},PUBLIC.SERVICE.LIB.Services.UploadService)">
             <summary>
             
             </summary>
-            <param name="config"></param>
             <param name="logger"></param>
-            <param name="apiKeys"></param>
-            <param name="rabbitMqPersistentConnection"></param>
+            <param name="uploadService"></param>
         </member>
         <member name="M:PUBLIC.CONTROLLER.LIB.Controllers.UploadController.BeginOfTransfer(PUBLIC.SERVICE.LIB.Models.RegisterBeginOfTransfer)">
             <summary>

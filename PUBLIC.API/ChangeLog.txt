@@ -1,4 +1,13 @@
-﻿[v1.2.0 - 2019/11/26]
+﻿[Unreleased]
+
+### Added
+	- Masstransit
+
+### Changed
+
+### Removed
+
+[v1.2.0 - 2019/11/26]
 
 ### Added
 

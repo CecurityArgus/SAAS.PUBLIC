@@ -1,11 +1,8 @@
 ﻿using Efacture.Api.Client.Api;
-using Efacture.Api.Client.Model;
 using Epaie.Api.Client.Api;
-using Epaie.Api.Client.Model;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using MQDispatch.Client;
 using Newtonsoft.Json;
 using Platform.Api.Client.Api;
 using Platform.Framework;
@@ -17,6 +14,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using static PUBLIC.SERVICE.LIB.Helpers.MQErrors;
 
 namespace PUBLIC.SERVICE.LIB.Services
@@ -28,34 +26,35 @@ namespace PUBLIC.SERVICE.LIB.Services
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _config;
-        private readonly ApiKeys _apiKeys;
         private readonly Platform.Api.Client.Client.Configuration _platformConfig;
         private readonly Epaie.Api.Client.Client.Configuration _epaieConfig;
         private readonly Efacture.Api.Client.Client.Configuration _efactureConfig;
         private readonly string _authToken;
         private readonly ClaimsPrincipal _user;
-        private readonly IRabbitMqPersistentConnection _rabbitMqPersistentConnection;
+        private readonly CommonService _commonService;
 
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="httpContextAccesor"></param>
         /// <param name="config"></param>
         /// <param name="logger"></param>
-        /// <param name="apiKeys"></param>
-        public UploadService(IConfiguration config, ILogger logger, ApiKeys apiKeys, string publicAuthToken, ClaimsPrincipal user = null, IRabbitMqPersistentConnection rabbitMqPersistentConnection = null)
+        /// <param name="commonService"></param>
+        public UploadService(IHttpContextAccessor httpContextAccesor, IConfiguration config, ILogger<UploadService> logger, CommonService commonService)
         {
             _logger = logger;
             _config = config;
-            _apiKeys = apiKeys;
-            _user = user;
-
-            _rabbitMqPersistentConnection = rabbitMqPersistentConnection;
+            _commonService = commonService;
+            _user = httpContextAccesor.HttpContext.User;
 
             //Get authorization token
+            var publicAuthToken = httpContextAccesor?.HttpContext?.Request?.Headers?["Authorization"].ToString();
+            if (string.IsNullOrWhiteSpace(publicAuthToken))
+                throw new UnauthorizedAccessException();
+
             var publicAuthHeader = System.Net.Http.Headers.AuthenticationHeaderValue.Parse(publicAuthToken);
             var currentTokenObj = new JwtSecurityTokenHandler().ReadJwtToken(publicAuthHeader.Parameter);
-            var idmAuthToken = currentTokenObj.Claims.Where(c => c.Type == "IDMAuthToken").FirstOrDefault();
-            
+            var idmAuthToken = currentTokenObj.Claims.Where(c => c.Type == "IDMAuthToken").FirstOrDefault();            
             if (string.IsNullOrWhiteSpace(idmAuthToken.Value))
                 throw new UnauthorizedAccessException();
 
@@ -90,7 +89,7 @@ namespace PUBLIC.SERVICE.LIB.Services
         /// <param name="transferId"></param>
         /// <param name="body"></param>
         /// <returns></returns>
-        public TransferRegistered BeginOfTransfer(string requestAPIKey, string transferId, RegisterBeginOfTransfer body)
+        public async Task<TransferRegistered> BeginOfTransferAsync(string transferId, RegisterBeginOfTransfer body)
         {
             //Check if all parameters are given and if there are files to upload
             if (string.IsNullOrWhiteSpace(body.SolutionName))
@@ -104,7 +103,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             //Get authorized subscriptions for user
             var subscriptionsApi = new PlatformSubscriptionsApi(_platformConfig);
-            var subscriptions = subscriptionsApi.PlatformPlatformSubscriptionsGetAuthorizedSubscriptionsGet();// subscriptionsApi.PlatformPlatformSubscriptionsGetAuthorizedSubscriptionsGet();
+            var subscriptions = await subscriptionsApi.PlatformPlatformSubscriptionsGetAuthorizedSubscriptionsGetAsync();
 
             if (subscriptions.Count == 0)
                 throw new CecurityException((int)MQMessages.APP_ERR_NO_AUTHORIZED_SUBSCRIPTIONS, MQErrorMessages[(int)MQMessages.APP_ERR_NO_AUTHORIZED_SUBSCRIPTIONS].Description, null);
@@ -178,7 +177,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             try
             {
                 string transferFile = Path.Combine(transferFolder, $"transfer.json");
-                System.IO.File.WriteAllText(transferFile, JsonConvert.SerializeObject(transferObject));
+                await System.IO.File.WriteAllTextAsync(transferFile, JsonConvert.SerializeObject(transferObject));
             }
             catch (Exception)
             {
@@ -196,7 +195,7 @@ namespace PUBLIC.SERVICE.LIB.Services
         /// </summary>
         /// <param name="transferId"></param>
         /// <param name="uploadedFiles"></param>
-        public void UploadFiles(string transferId, List<IFormFile> uploadedFiles)
+        public async Task<string> UploadFilesAsync(string transferId, List<IFormFile> uploadedFiles)
         {
             if (string.IsNullOrWhiteSpace(transferId))
                 throw new CecurityException((int)MQMessages.APP_ERR_NO_TRANSFERID, MQErrorMessages[(int)MQMessages.APP_ERR_NO_TRANSFERID].Description, null);
@@ -214,7 +213,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             string transferFile = Path.Combine(transferFolder, $"transfer.json");
             if (!System.IO.File.Exists(transferFile))
                 throw new CecurityException((int)MQMessages.APP_ERR_TRANSFER_CONFIG_FILE_NOT_FOUND, $"No transfer configuration file found for transfer '{transferId}' !", null);
-            var transferObject = JsonConvert.DeserializeObject<TransferObject>(System.IO.File.ReadAllText(transferFile));
+            var transferObject = JsonConvert.DeserializeObject<TransferObject>(await System.IO.File.ReadAllTextAsync(transferFile));
 
             foreach (var uploadedFile in uploadedFiles)
             {
@@ -238,7 +237,7 @@ namespace PUBLIC.SERVICE.LIB.Services
                         // If all check passes we can copy the uploaded file
                         using (var stream = new FileStream(uploadedFileFullPath, FileMode.Create))
                         {
-                            uploadedFile.CopyTo(stream);
+                            await uploadedFile.CopyToAsync(stream);
 
                             _logger.LogInformation($"UploadController/UploadFiles: File received '{uploadedFileName}'. TransferId = {transferId}");
                         }
@@ -246,7 +245,7 @@ namespace PUBLIC.SERVICE.LIB.Services
                         //See if we have to check the file fingerprint
                         if (!string.IsNullOrWhiteSpace(transferObjectFile.FingerPrint) && !string.IsNullOrWhiteSpace(transferObjectFile.FingerPrintAlgorithm))
                         {
-                            if (!CheckFileFingerprint(transferObjectFile.FingerPrintAlgorithm, transferObjectFile.FingerPrint, uploadedFileFullPath))
+                            if (!await CheckFileFingerprintAsync(transferObjectFile.FingerPrintAlgorithm, transferObjectFile.FingerPrint, uploadedFileFullPath))
                             {
                                 //Fingerprints don't match so delete the uploaded file
                                 if (System.IO.File.Exists(uploadedFileFullPath))
@@ -260,9 +259,16 @@ namespace PUBLIC.SERVICE.LIB.Services
                 else
                     _logger.LogInformation($"UploadController/UploadFiles: File '{uploadedFileName}' already uploaded, ignoring file. TransferId = {transferId}");
             }
+
+            return "";
         }
 
-        public void EndOfTransfer(string transferId)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="transferId"></param>
+        /// <returns></returns>
+        public async Task<string> EndOfTransferAsync(string transferId)
         {
             if (string.IsNullOrWhiteSpace(transferId))
                 throw new CecurityException((int)MQMessages.APP_ERR_NO_TRANSFERID, MQErrorMessages[(int)MQMessages.APP_ERR_NO_TRANSFERID].Description, null);
@@ -276,7 +282,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             string transferFile = Path.Combine(transferFolder, $"transfer.json");
             if (!System.IO.File.Exists(transferFile))
                 throw new CecurityException((int)MQMessages.APP_ERR_TRANSFER_CONFIG_FILE_NOT_FOUND, $"No transfer configuration file found for transfer '{transferId}' !", null);
-            var transferObject = JsonConvert.DeserializeObject<TransferObject>(System.IO.File.ReadAllText(transferFile));
+            var transferObject = JsonConvert.DeserializeObject<TransferObject>(await System.IO.File.ReadAllTextAsync(transferFile));
 
             //Check if all files have been uploaded
             List<string> filesNotUploaded = new List<string>();
@@ -289,13 +295,11 @@ namespace PUBLIC.SERVICE.LIB.Services
             if (filesNotUploaded.Count > 0)
                 throw new CecurityException((int)MQMessages.APP_ERR_NOT_ALL_FILES_UPLOADED, $"Not all files have been uploaded ({string.Join(", ", filesNotUploaded)})", null);
 
-            var currentTokenObj = new JwtSecurityTokenHandler().ReadJwtToken(_authToken);   
-
             if (transferObject.SolutionName.ToLower().Equals("epaie"))
             {
                 try
                 {
-                    RegisterEPaieUpload(transferId, transferObject.SubscriptionId, transferObject.UploadFiles);
+                    await RegisterEPaieUploadAsync(transferId, transferObject.SubscriptionId, transferObject.UploadFiles);
                 }
                 catch (CecurityException exception)
                 {
@@ -318,7 +322,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             {
                 try
                 {
-                    RegisterEFactureUpload(transferId, transferObject.SubscriptionId, transferObject.UploadFiles);
+                    await RegisterEFactureUploadAsync(transferId, transferObject.SubscriptionId, transferObject.UploadFiles);
                 }
                 catch (CecurityException exception)
                 {
@@ -345,9 +349,11 @@ namespace PUBLIC.SERVICE.LIB.Services
                 Directory.Delete(transferFolder, true);
 
             _logger.LogInformation($"UploadController/EndOfTransfer: Finished. TransferId = {transferId}");
+
+            return "";
         }
 
-        public void AbortTransfer(string transferId)
+        public async Task<string> AbortTransferAsync(string transferId)
         {
             if (string.IsNullOrWhiteSpace(transferId))
                 throw new CecurityException((int)MQMessages.APP_ERR_NO_TRANSFERID, MQErrorMessages[(int)MQMessages.APP_ERR_NO_TRANSFERID].Description, null);
@@ -361,17 +367,19 @@ namespace PUBLIC.SERVICE.LIB.Services
                 Directory.Delete(transferFolder, true);
 
             _logger.LogInformation($"UploadController/AbortTransfer: Finished. TransferId = {transferId}");
+
+            return await Task.FromResult(string.Empty);
         }
 
         #region EPAIE
 
-        private void RegisterEPaieUpload(string transferId, string subscriptionId, List<FileWithFingerPrintInfo> uploadedFiles)
+        private async Task<string> RegisterEPaieUploadAsync(string transferId, string subscriptionId, List<FileWithFingerPrintInfo> uploadedFiles)
         {
             var epaieUploadsApi = new EPaieUploadApi(_epaieConfig);
 
             //Get subscriptions for subscriptionId
             var subscriptionsApi = new PlatformSubscriptionsApi(_platformConfig);
-            var subscription = subscriptionsApi.SubscriptionById(subscriptionId);
+            var subscription = await subscriptionsApi.SubscriptionByIdAsync(subscriptionId);
             var solutionParams = JsonConvert.DeserializeObject<SolutionParams>(subscription.SolutionParams);
             var subscriptionParams = JsonConvert.DeserializeObject<EPaieParams>(solutionParams.Solution.Params);
 
@@ -385,10 +393,10 @@ namespace PUBLIC.SERVICE.LIB.Services
             var loginName = _user.FindFirst(ClaimTypes.Name).Value;
             var displayName = _user.FindFirst(ClaimTypes.UserData).Value;
 
-            var upload = epaieUploadsApi.EPAIEEPaieUploadGetUploadByTransferIdGet(transferId);
+            var upload = await epaieUploadsApi.EPAIEEPaieUploadGetUploadByTransferIdGetAsync(transferId);
             if (upload == null)
             {               
-                upload = epaieUploadsApi.EPAIEEPaieUploadPost(new Epaie.Api.Client.Model.UploadAddUpdateRequest() 
+                upload = await epaieUploadsApi.EPAIEEPaieUploadPostAsync(new Epaie.Api.Client.Model.UploadAddUpdateRequest() 
                 {
                     SubscriptionId = subscriptionId,
                     TransferId = transferId,
@@ -405,10 +413,10 @@ namespace PUBLIC.SERVICE.LIB.Services
             //Register each file
             foreach (var fileInfo in uploadedFiles)
             {
-                Epaie.Api.Client.Model.UploadedFile uploadedFile = epaieUploadsApi.EPAIEEPaieUploadFilesGet(upload.Id, fileInfo.FileName).FirstOrDefault();
+                Epaie.Api.Client.Model.UploadedFile uploadedFile = (await epaieUploadsApi.EPAIEEPaieUploadFilesGetAsync(upload.Id, fileInfo.FileName)).FirstOrDefault();
                 if (uploadedFile == null)
                 {
-                    uploadedFile = epaieUploadsApi.EPAIEEPaieUploadFilesPost(new Epaie.Api.Client.Model.UploadedFileAddUpdateRequest()
+                    uploadedFile = await epaieUploadsApi.EPAIEEPaieUploadFilesPostAsync(new Epaie.Api.Client.Model.UploadedFileAddUpdateRequest()
                     {
                         FileSize = fileInfo.FileSize,
                         FingerPrint = fileInfo.FingerPrint,
@@ -425,7 +433,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             try
             {
-                RegisterEPaieJob(transferId, solutionParams, subscriptionParams, registeredUploadedFiles, upload, epaieUploadsApi);
+                await RegisterEPaieJobAsync(transferId, solutionParams, subscriptionParams, registeredUploadedFiles, upload, epaieUploadsApi);
             }
             catch (Exception)
             {
@@ -438,9 +446,11 @@ namespace PUBLIC.SERVICE.LIB.Services
 
                 throw;
             }
+
+            return "";
         }
 
-        private void RegisterEPaieJob(string transferId, SolutionParams solutionParams, EPaieParams subscriptionParams, List<Epaie.Api.Client.Model.UploadedFile> uploadedFiles, Epaie.Api.Client.Model.Upload upload, EPaieUploadApi epaieUploadsApi)
+        private async Task<string> RegisterEPaieJobAsync(string transferId, SolutionParams solutionParams, EPaieParams subscriptionParams, List<Epaie.Api.Client.Model.UploadedFile> uploadedFiles, Epaie.Api.Client.Model.Upload upload, EPaieUploadApi epaieUploadsApi)
         {
             //Check if there are accopanying files (PDF + CSV)
             var extensions = new List<String>();
@@ -521,7 +531,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
                 previousFile = Path.GetFileNameWithoutExtension(uploadedFile.OriginalFileName);
 
-                epaieUploadsApi.EPAIEEPaieUploadFilesUploadedFileIdPut(uploadedFile.Id, new Epaie.Api.Client.Model.UploadedFileAddUpdateRequest()
+                await epaieUploadsApi.EPAIEEPaieUploadFilesUploadedFileIdPutAsync(uploadedFile.Id, new Epaie.Api.Client.Model.UploadedFileAddUpdateRequest()
                 {
                     FileSize = uploadedFile.FileSize,
                     FingerPrint = uploadedFile.FingerPrint,
@@ -535,7 +545,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             upload.State = 2;
             upload.LastActionTimeStamp = DateTime.Now;
-            epaieUploadsApi.EPAIEEPaieUploadUploadIdPut(upload.Id, new Epaie.Api.Client.Model.UploadAddUpdateRequest()
+            await epaieUploadsApi.EPAIEEPaieUploadUploadIdPutAsync(upload.Id, new Epaie.Api.Client.Model.UploadAddUpdateRequest()
             {
                 FullName = upload.FullName,
                 LastActionTimeStamp = upload.LastActionTimeStamp,
@@ -551,10 +561,10 @@ namespace PUBLIC.SERVICE.LIB.Services
             // Create new job if not exist
             var epaieJobsApi = new EPaieJobsApi(_epaieConfig);
 
-            Epaie.Api.Client.Model.Job newJob = epaieJobsApi.EPAIEEPaieJobsGet(transferId).FirstOrDefault();
+            Epaie.Api.Client.Model.Job newJob = (await epaieJobsApi.EPAIEEPaieJobsGetAsync(transferId)).FirstOrDefault();
             if (newJob == null)
             {
-                newJob = epaieJobsApi.EPAIEEPaieJobsPost(new Epaie.Api.Client.Model.JobAddUpdateRequest()
+                newJob = await epaieJobsApi.EPAIEEPaieJobsPostAsync(new Epaie.Api.Client.Model.JobAddUpdateRequest()
                 {
                     TransferId = transferId,
                     SubscriptionId = upload.SubscriptionId,
@@ -568,11 +578,11 @@ namespace PUBLIC.SERVICE.LIB.Services
             _logger.LogInformation($"UploadController/EndOfTransfer: Job = {JsonConvert.SerializeObject(newJob)}. TransferId = {transferId}");
 
             // Create job summary if not exist
-            Epaie.Api.Client.Model.JobSummary newJobSummary = epaieJobsApi.EPAIEEPaieJobsSummaryGet(newJob.Id);
+            Epaie.Api.Client.Model.JobSummary newJobSummary = await epaieJobsApi.EPAIEEPaieJobsSummaryGetAsync(newJob.Id);
 
             if (newJobSummary == null)
             {
-                newJobSummary = epaieJobsApi.EPAIEEPaieJobsSummaryPost(new Epaie.Api.Client.Model.JobSummaryAddUpdateRequest()
+                newJobSummary = await epaieJobsApi.EPAIEEPaieJobsSummaryPostAsync(new Epaie.Api.Client.Model.JobSummaryAddUpdateRequest()
                 {
                     JobId = newJob.Id,
                     NbrOfFiles = uploadedFiles.Count,
@@ -624,7 +634,7 @@ namespace PUBLIC.SERVICE.LIB.Services
                 destinationFolder = epaieLegacyFolder;
             }
 
-            uploadedFiles = epaieUploadsApi.EPAIEEPaieUploadFilesGet(upload.Id);
+            uploadedFiles = await epaieUploadsApi.EPAIEEPaieUploadFilesGetAsync(upload.Id);
 
             long totalBytesDep = 0;
             int totalFilesDeposited = 0;
@@ -656,12 +666,14 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             var platformResellerApi = new PlatformResellersApi(_platformConfig);
 
-            var data = new List<Metrics.Api.Client.Model.NameValuePair>();
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId });
+            var data = new List<Metrics.Api.Client.Model.NameValuePair>
+            {
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId },
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id },
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId }
+            };
 
-            var resellers = platformResellerApi.PlatformPlatformResellersGetParentResellersBySubscriptionIdGet(newJob.SubscriptionId);
+            var resellers = await platformResellerApi.PlatformPlatformResellersGetParentResellersBySubscriptionIdGetAsync(newJob.SubscriptionId);
             if (resellers != null)
             {
                 var resellersDeserialized = JsonConvert.DeserializeObject(resellers).ToString();
@@ -680,23 +692,25 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositTime", Value = newJob.JobStarted.ToString(System.Globalization.CultureInfo.InvariantCulture) });
 
-            CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EPAIE, data, _config);
+            await _commonService.UpdateMtricsForJobIdAsync((int)MQMessages.MET_INF_IMPORTATION_EPAIE, data);
 
             // Save job
             _logger.LogInformation($"UploadController/EndOfTransfer: Saving job. TransferId = {transferId}");
+
+            return "";
         }
 
         #endregion
 
         #region EFACTURE
 
-        private void RegisterEFactureUpload(string transferId, string subscriptionId, List<FileWithFingerPrintInfo> uploadedFiles)
+        private async Task<string> RegisterEFactureUploadAsync(string transferId, string subscriptionId, List<FileWithFingerPrintInfo> uploadedFiles)
         {
             var efactureUploadsApi = new EFactureUploadApi(_efactureConfig);
 
             //Get subscriptions for subscriptionId
             var subscriptionsApi = new PlatformSubscriptionsApi(_platformConfig);
-            var subscription = subscriptionsApi.SubscriptionById(subscriptionId);
+            var subscription = await subscriptionsApi.SubscriptionByIdAsync(subscriptionId);
             var solutionParams = JsonConvert.DeserializeObject<SolutionParams>(subscription.SolutionParams);
             var subscriptionParams = JsonConvert.DeserializeObject<EFactureParams>(solutionParams.Solution.Params);
 
@@ -710,10 +724,10 @@ namespace PUBLIC.SERVICE.LIB.Services
             var loginName = _user.FindFirst(ClaimTypes.Name).Value;
             var displayName = _user.FindFirst(ClaimTypes.UserData).Value;
 
-            var upload = efactureUploadsApi.EFACTUREEFactureUploadGetUploadByTransferIdGet(transferId);
+            var upload = await efactureUploadsApi.EFACTUREEFactureUploadGetUploadByTransferIdGetAsync(transferId);
             if (upload == null)
             {
-                upload = efactureUploadsApi.EFACTUREEFactureUploadPost(new Efacture.Api.Client.Model.UploadAddUpdateRequest()
+                upload = await efactureUploadsApi.EFACTUREEFactureUploadPostAsync(new Efacture.Api.Client.Model.UploadAddUpdateRequest()
                 {
                     SubscriptionId = subscriptionId,
                     TransferId = transferId,
@@ -730,10 +744,10 @@ namespace PUBLIC.SERVICE.LIB.Services
             //Register each file
             foreach (var fileInfo in uploadedFiles)
             {
-                Efacture.Api.Client.Model.UploadedFile uploadedFile = efactureUploadsApi.EFACTUREEFactureUploadFilesGet(upload.Id, fileInfo.FileName).FirstOrDefault();
+                Efacture.Api.Client.Model.UploadedFile uploadedFile = (await efactureUploadsApi.EFACTUREEFactureUploadFilesGetAsync(upload.Id, fileInfo.FileName)).FirstOrDefault();
                 if (uploadedFile == null)
                 {
-                    uploadedFile = efactureUploadsApi.EFACTUREEFactureUploadFilesPost(new Efacture.Api.Client.Model.UploadedFileAddUpdateRequest()
+                    uploadedFile = await efactureUploadsApi.EFACTUREEFactureUploadFilesPostAsync(new Efacture.Api.Client.Model.UploadedFileAddUpdateRequest()
                     {
                         FileSize = fileInfo.FileSize,
                         FingerPrint = fileInfo.FingerPrint,
@@ -750,7 +764,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             try
             {
-                RegisterEFactureJob(transferId, solutionParams, subscriptionParams, registeredUploadedFiles, upload, efactureUploadsApi);
+                await RegisterEFactureJobAsync(transferId, solutionParams, subscriptionParams, registeredUploadedFiles, upload, efactureUploadsApi);
             }
             catch (Exception)
             {
@@ -763,9 +777,11 @@ namespace PUBLIC.SERVICE.LIB.Services
 
                 throw;
             }
+
+            return "";
         }
 
-        private void RegisterEFactureJob(string transferId, SolutionParams solutionParams, EFactureParams subscriptionParams, List<Efacture.Api.Client.Model.UploadedFile> uploadedFiles, Efacture.Api.Client.Model.Upload upload, EFactureUploadApi efactureUploadsApi)
+        private async Task<string> RegisterEFactureJobAsync(string transferId, SolutionParams solutionParams, EFactureParams subscriptionParams, List<Efacture.Api.Client.Model.UploadedFile> uploadedFiles, Efacture.Api.Client.Model.Upload upload, EFactureUploadApi efactureUploadsApi)
         {
             //Check if there are accopanying files (PDF + CSV)
             var extensions = new List<String>();
@@ -846,7 +862,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
                 previousFile = Path.GetFileNameWithoutExtension(uploadedFile.OriginalFileName);
 
-                efactureUploadsApi.EFACTUREEFactureUploadFilesUploadedFileIdPut(uploadedFile.Id, new Efacture.Api.Client.Model.UploadedFileAddUpdateRequest()
+                await efactureUploadsApi.EFACTUREEFactureUploadFilesUploadedFileIdPutAsync(uploadedFile.Id, new Efacture.Api.Client.Model.UploadedFileAddUpdateRequest()
                 {
                     FileSize = uploadedFile.FileSize,
                     FingerPrint = uploadedFile.FingerPrint,
@@ -860,7 +876,7 @@ namespace PUBLIC.SERVICE.LIB.Services
 
             upload.State = 2;
             upload.LastActionTimeStamp = DateTime.Now;
-            efactureUploadsApi.EFACTUREEFactureUploadUploadIdPut(upload.Id, new Efacture.Api.Client.Model.UploadAddUpdateRequest()
+            await efactureUploadsApi.EFACTUREEFactureUploadUploadIdPutAsync(upload.Id, new Efacture.Api.Client.Model.UploadAddUpdateRequest()
             {
                 FullName = upload.FullName,
                 LastActionTimeStamp = upload.LastActionTimeStamp,
@@ -876,7 +892,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             // Create new job if not exist
             var efactureJobsApi = new EFactureJobsApi(_efactureConfig);
 
-            Efacture.Api.Client.Model.Job newJob = efactureJobsApi.EFACTUREEFactureJobsGet(transferId).FirstOrDefault();
+            Efacture.Api.Client.Model.Job newJob = (await efactureJobsApi.EFACTUREEFactureJobsGetAsync(transferId)).FirstOrDefault();
             if (newJob == null)
             {
                 newJob = efactureJobsApi.EFACTUREEFactureJobsPost(new Efacture.Api.Client.Model.JobAddUpdateRequest()
@@ -893,11 +909,11 @@ namespace PUBLIC.SERVICE.LIB.Services
             _logger.LogInformation($"UploadController/EndOfTransfer: Job = {JsonConvert.SerializeObject(newJob)}. TransferId = {transferId}");
 
             // Create job summary if not exist
-            Efacture.Api.Client.Model.JobSummary newJobSummary = efactureJobsApi.EFACTUREEFactureJobsSummaryGet(newJob.Id);
+            Efacture.Api.Client.Model.JobSummary newJobSummary = await efactureJobsApi.EFACTUREEFactureJobsSummaryGetAsync(newJob.Id);
 
             if (newJobSummary == null)
             {
-                newJobSummary = efactureJobsApi.EFACTUREEFactureJobsSummaryPost(new Efacture.Api.Client.Model.JobSummaryAddUpdateRequest()
+                newJobSummary = await efactureJobsApi.EFACTUREEFactureJobsSummaryPostAsync(new Efacture.Api.Client.Model.JobSummaryAddUpdateRequest()
                 {
                     JobId = newJob.Id,
                     NbrOfFiles = uploadedFiles.Count,
@@ -940,7 +956,7 @@ namespace PUBLIC.SERVICE.LIB.Services
                 destinationFolder = efacturePrevalidationFolder;
             }
 
-            uploadedFiles = efactureUploadsApi.EFACTUREEFactureUploadFilesGet(upload.Id);
+            uploadedFiles = await efactureUploadsApi.EFACTUREEFactureUploadFilesGetAsync(upload.Id);
 
             long totalBytesDep = 0;
             int totalFilesDeposited = 0;
@@ -970,14 +986,16 @@ namespace PUBLIC.SERVICE.LIB.Services
             // Save the information package
             InformationPackage.SaveIP(ip, ipFile);
 
-            var data = new List<Metrics.Api.Client.Model.NameValuePair>();
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id });
-            data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId });
+            var data = new List<Metrics.Api.Client.Model.NameValuePair>
+            {
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "SubscriptionId", Value = newJob.SubscriptionId },
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "JobId", Value = newJob.Id },
+                new Metrics.Api.Client.Model.NameValuePair() { Name = "TransferId", Value = newJob.TransferId }
+            };
 
             var platformResellerApi = new PlatformResellersApi(_platformConfig);
 
-            var resellers = platformResellerApi.PlatformPlatformResellersGetParentResellersBySubscriptionIdGet(newJob.SubscriptionId);
+            var resellers = await platformResellerApi.PlatformPlatformResellersGetParentResellersBySubscriptionIdGetAsync(newJob.SubscriptionId);
             if (resellers != null)
             {
                 var resellersDeserialized = JsonConvert.DeserializeObject(resellers).ToString();
@@ -996,16 +1014,18 @@ namespace PUBLIC.SERVICE.LIB.Services
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "NbrEmployees", Value = subscriptionParams.NombreEmployes });
             data.Add(new Metrics.Api.Client.Model.NameValuePair() { Name = "DepositTime", Value = newJob.JobStarted.ToString(System.Globalization.CultureInfo.InvariantCulture) });
 
-            CommonService.UpdateMtricsForJobId((int)MQMessages.MET_INF_IMPORTATION_EFACTURE, data, _config);
+            await _commonService.UpdateMtricsForJobIdAsync((int)MQMessages.MET_INF_IMPORTATION_EFACTURE, data);
 
             // Save job
             _logger.LogInformation($"UploadController/EndOfTransfer: Saving job. TransferId = {transferId}");
+
+            return "";
         }
 
         #endregion
 
         #region FUNCTIONS
-        private bool CheckFileFingerprint(string fileInfoFingerPrintAlgorithm, string fileInfoFingerPrint, string uploadedFile)
+        private async Task<bool> CheckFileFingerprintAsync(string fileInfoFingerPrintAlgorithm, string fileInfoFingerPrint, string uploadedFile)
         {
             var uploadedFileFingerPrint = "";
 
@@ -1040,7 +1060,7 @@ namespace PUBLIC.SERVICE.LIB.Services
                 }
             }
 
-            return uploadedFileFingerPrint.Equals(fileInfoFingerPrint);
+            return await Task.FromResult(uploadedFileFingerPrint.Equals(fileInfoFingerPrint));
         }
         #endregion
     }

@@ -122,7 +122,7 @@
             this.publicUri.Name = "publicUri";
             this.publicUri.Size = new System.Drawing.Size(237, 20);
             this.publicUri.TabIndex = 0;
-            this.publicUri.Text = "http://localhost:5010/";
+            this.publicUri.Text = "https://appdev.cecurity.com/public.api/";
             // 
             // BaseUri
             // 
@@ -157,7 +157,7 @@
             this.txtApiKey.Name = "txtApiKey";
             this.txtApiKey.Size = new System.Drawing.Size(237, 20);
             this.txtApiKey.TabIndex = 1;
-            this.txtApiKey.Text = "2b02bc4f-33ab-49ea-b0d2-f82b8411faec";
+            this.txtApiKey.Text = "06b0cb60-50f4-46dc-aff4-c9e5abf66747";
             // 
             // label3
             // 

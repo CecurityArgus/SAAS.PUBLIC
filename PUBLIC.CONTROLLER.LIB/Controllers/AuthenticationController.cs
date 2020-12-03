@@ -12,6 +12,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 using static PUBLIC.SERVICE.LIB.Helpers.MQErrors;
 
 namespace PUBLIC.CONTROLLER.LIB.Controllers
@@ -23,21 +24,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
-        private readonly IConfiguration _config;
         private readonly ILogger _logger;
-        private readonly ApiKeys _apiKeys;
+        private readonly AuthenticationsService _authenticationsService;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="config"></param>
         /// <param name="logger"></param>
-        /// <param name="apiKeys"></param>
-        public AuthenticationController(IConfiguration config, ILogger<AuthenticationController> logger, ApiKeys apiKeys)
+        /// <param name="authenticationsService"></param>
+        public AuthenticationController(ILogger<AuthenticationController> logger, AuthenticationsService authenticationsService)
         {
-            _config = config;
             _logger = logger;
-            _apiKeys = apiKeys;
+            _authenticationsService = authenticationsService;
         }
 
         #region CONTROLLERS
@@ -51,7 +49,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(200, Type = typeof(DtoAuthentication.MdlAuthenticated))]
         [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(400, Type = typeof(CecurityException))]
-        public IActionResult Authenticate(DtoAuthentication.MdlLogonUser body)
+        public async Task<IActionResult> Authenticate(DtoAuthentication.MdlLogonUser body)
         {
             _logger.LogInformation("AuthenticationController/Authenticate: Started");
 
@@ -63,8 +61,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
                 if (string.IsNullOrWhiteSpace(requestAPIKey))
                     throw new CecurityException((int)MQMessages.APP_ERR_NO_APIKEY_PROVIDED, "No APIKey provided !", null);
 
-                var service = new AuthenticationsService(_config, _logger, _apiKeys);
-                var response = service.Authenticate(requestAPIKey, new Platform.Api.Client.Model.IdmAccountValidateRequest() { LoginName = body.Username, Password = body.Password });
+                var response = await _authenticationsService.AuthenticateAsync(requestAPIKey, new Platform.Api.Client.Model.IdmAccountValidateRequest() { LoginName = body.Username, Password = body.Password });
 
                 _logger.LogInformation($"AuthenticationController/Authenticate: Finished. Token: {response}");
 
