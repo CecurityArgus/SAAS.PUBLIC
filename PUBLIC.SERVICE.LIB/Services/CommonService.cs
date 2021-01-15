@@ -32,7 +32,7 @@ namespace PUBLIC.SERVICE.LIB.Services
         {
             var metricsConfig = new Metrics.Api.Client.Client.Configuration()
             {
-                BasePath = _config.GetSection("SMTP:MetricsRestApiUrl").Value
+                BasePath = _config.GetSection("AppSettings:MetricsRestApiUrl").Value
             };
             metricsConfig.Username = HMACApiDefaults.ClientId;
             metricsConfig.Password = HMACApiDefaults.ClientSecret;
