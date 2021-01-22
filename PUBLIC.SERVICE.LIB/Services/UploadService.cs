@@ -895,11 +895,11 @@ namespace PUBLIC.SERVICE.LIB.Services
             Efacture.Api.Client.Model.Job newJob = (await efactureJobsApi.EFACTUREEFactureJobsGetAsync(transferId)).FirstOrDefault();
             if (newJob == null)
             {
-                newJob = efactureJobsApi.EFACTUREEFactureJobsPost(new Efacture.Api.Client.Model.JobAddUpdateRequest()
+                newJob = await efactureJobsApi.EFACTUREEFactureJobsPostAsync(new Efacture.Api.Client.Model.JobAddUpdateRequest()
                 {
                     TransferId = transferId,
                     SubscriptionId = upload.SubscriptionId,
-                    JobReference = "EPAIE",
+                    JobReference = "EFACTURE",
                     JobState = Efacture.Api.Client.Model.JobState.NUMBER_0,
                     TaskReference = "Deposit"
                 });

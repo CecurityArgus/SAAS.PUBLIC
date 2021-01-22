@@ -77,7 +77,7 @@
             this.txtUserName.Name = "txtUserName";
             this.txtUserName.Size = new System.Drawing.Size(237, 20);
             this.txtUserName.TabIndex = 2;
-            this.txtUserName.Text = "reseller1";
+            this.txtUserName.Text = "benoits";
             // 
             // txtPassword
             // 
@@ -122,7 +122,7 @@
             this.publicUri.Name = "publicUri";
             this.publicUri.Size = new System.Drawing.Size(237, 20);
             this.publicUri.TabIndex = 0;
-            this.publicUri.Text = "https://appdev.cecurity.com/public.api/";
+            this.publicUri.Text = "https://app.cecurity.com/public.api/";
             // 
             // BaseUri
             // 
@@ -157,7 +157,7 @@
             this.txtApiKey.Name = "txtApiKey";
             this.txtApiKey.Size = new System.Drawing.Size(237, 20);
             this.txtApiKey.TabIndex = 1;
-            this.txtApiKey.Text = "06b0cb60-50f4-46dc-aff4-c9e5abf66747";
+            this.txtApiKey.Text = "06e1104d-65ad-413f-8035-b353944287a8";
             // 
             // label3
             // 
@@ -276,7 +276,7 @@
             this.txtSiren.Name = "txtSiren";
             this.txtSiren.Size = new System.Drawing.Size(237, 20);
             this.txtSiren.TabIndex = 8;
-            this.txtSiren.Text = "987123654";
+            this.txtSiren.Text = "222222222";
             // 
             // label6
             // 
@@ -311,7 +311,7 @@
             this.cmbSolutionName.Name = "cmbSolutionName";
             this.cmbSolutionName.Size = new System.Drawing.Size(237, 21);
             this.cmbSolutionName.TabIndex = 7;
-            this.cmbSolutionName.Text = "EPaie";
+            this.cmbSolutionName.Text = "EFacture";
             // 
             // label4
             // 

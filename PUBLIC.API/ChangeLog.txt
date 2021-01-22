@@ -4,6 +4,7 @@
 	- Masstransit
 
 ### Changed
+	- Bug with efacture jobs not in validation resolved
 
 ### Removed
 
