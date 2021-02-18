@@ -11,6 +11,7 @@ using PUBLIC.SERVICE.LIB.Services;
 using System;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 using static PUBLIC.SERVICE.LIB.Helpers.MQErrors;
 
 namespace PUBLIC.CONTROLLER.LIB.Controllers
@@ -22,26 +23,18 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
     [ApiController]
     public class UploadController : ControllerBase
     {
-        private readonly IConfiguration _config;
         private readonly ILogger _logger;
-        private readonly ApiKeys _apiKeys;
-
-        private readonly IRabbitMqPersistentConnection _rabbitMqPersistentConnection;
+        private readonly UploadService _uploadService;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="config"></param>
         /// <param name="logger"></param>
-        /// <param name="apiKeys"></param>
-        /// <param name="rabbitMqPersistentConnection"></param>
-        public UploadController(IConfiguration config, ILogger<AuthenticationController> logger, ApiKeys apiKeys, IRabbitMqPersistentConnection rabbitMqPersistentConnection)
+        /// <param name="uploadService"></param>
+        public UploadController(ILogger<AuthenticationController> logger, UploadService uploadService)
         {
-            _config = config;
             _logger = logger;
-            _apiKeys = apiKeys;
-
-            _rabbitMqPersistentConnection = rabbitMqPersistentConnection;
+            _uploadService = uploadService;
         }
 
         /// <summary>
@@ -54,18 +47,15 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(200, Type = typeof(TransferRegistered))]
         [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(500, Type = typeof(CecurityException))]
-        public virtual IActionResult BeginOfTransfer(RegisterBeginOfTransfer body)
+        public async Task<IActionResult> BeginOfTransfer(RegisterBeginOfTransfer body)
         {
             var transferId = Guid.NewGuid().ToString();
 
             try
             {
-                var requestApiKey = Request.Headers["X-TransferId"].ToString();
-
                 _logger.LogInformation($"UploadController/BeginOfTransfer: Started. TransferId = {transferId}");
 
-                var uploadService = new UploadService(_config, _logger, _apiKeys, Request.Headers["Authorization"]);
-                var response = uploadService.BeginOfTransfer(requestApiKey, transferId, body);
+                var response = await _uploadService.BeginOfTransferAsync(transferId, body);
 
                 _logger.LogInformation($"UploadController/BeginOfTransfer: Finished. TransferId = {transferId}");
 
@@ -96,7 +86,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(413)]
         [ProducesResponseType(500, Type = typeof(CecurityException))]
         [DisableRequestSizeLimit]
-        public IActionResult UploadFiles()
+        public async Task<IActionResult> UploadFiles()
         {
             string transferId = Request.Headers["X-TransferId"].ToString();
 
@@ -105,9 +95,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
             try
             {
                 var uploadedFiles = HttpContext.Request.Form.Files.ToList();
-
-                var uploadService = new UploadService(_config, _logger, _apiKeys, Request.Headers["Authorization"]);
-                uploadService.UploadFiles(transferId, uploadedFiles);                
+                await _uploadService.UploadFilesAsync(transferId, uploadedFiles);                
 
                 _logger.LogInformation($"UploadController/UploadFiles: Finished. TransferId = {transferId}");
 
@@ -137,7 +125,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(500, Type = typeof(CecurityException))]
         [DisableRequestSizeLimit]
-        public IActionResult EndOfTransfer()
+        public async Task<IActionResult> EndOfTransfer()
         {
             string transferId = Request.Headers["X-TransferId"].ToString();
 
@@ -145,8 +133,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
             try
             {                
-                var uploadService = new UploadService(_config, _logger, _apiKeys, Request.Headers["Authorization"], User, _rabbitMqPersistentConnection);
-                uploadService.EndOfTransfer(transferId);
+                await _uploadService.EndOfTransferAsync(transferId);
 
                 return Ok();
             }
@@ -174,7 +161,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
         [ProducesResponseType(401, Type = typeof(string))]
         [ProducesResponseType(500, Type = typeof(CecurityException))]
         [DisableRequestSizeLimit]
-        public IActionResult AbortTransfer()
+        public async Task<IActionResult> AbortTransfer()
         {
             string transferId = Request.Headers["X-TransferId"].ToString();
             
@@ -182,8 +169,7 @@ namespace PUBLIC.CONTROLLER.LIB.Controllers
 
             try
             {
-                var uploadService = new UploadService(_config, _logger, _apiKeys, Request.Headers["Authorization"]);
-                uploadService.AbortTransfer(transferId);
+                await _uploadService.AbortTransferAsync(transferId);
 
                 return Ok();
             }

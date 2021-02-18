@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using MassTransit.Dispatch.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using MQDispatch.Client;
 using Newtonsoft.Json;
@@ -21,7 +22,7 @@ namespace PUBLIC.API.Helpers
             _logger = logger;
         }
 
-        public async Task Invoke(HttpContext context, IRabbitMqPersistentConnection rabbitMqPersistentConnection)
+        public async Task Invoke(HttpContext context, DispatchClient dispatchClient)
         {
             try
             {
@@ -29,20 +30,24 @@ namespace PUBLIC.API.Helpers
             }
             catch (Exception ex)
             {
-                await HandleExceptionAsync(context, ex, rabbitMqPersistentConnection);
+                await HandleExceptionAsync(context, ex, dispatchClient);
             }
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, Exception exception, IRabbitMqPersistentConnection rabbitMqPersistentConnection)
+        private static async Task HandleExceptionAsync(HttpContext context, Exception exception, DispatchClient dispatchClient)
         {
             if (!(exception is CecurityException cecurityException))
             {
                 cecurityException = new CecurityException((int)MQMessages.APP_ERR_UNHANDLED, exception.Message, exception.InnerException);
 
-                rabbitMqPersistentConnection.SendApplicationErrorMessage(cecurityException.Code(), cecurityException);
+                try
+                {
+                    await dispatchClient.SendApplicationErrorMessageAsync(cecurityException.Code(), cecurityException);
+                }
+                catch (Exception) { }
             }
 
-            _logger.LogError(cecurityException, cecurityException.Message);
+            _logger.LogError(cecurityException.InnerException, cecurityException.Message);
 
             var result = JsonConvert.SerializeObject(new
             {
@@ -53,7 +58,7 @@ namespace PUBLIC.API.Helpers
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-            return context.Response.WriteAsync(result);
+            await context.Response.WriteAsync(result);
         }
     }
 }

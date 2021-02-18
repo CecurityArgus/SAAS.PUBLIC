@@ -21,8 +21,8 @@ namespace PUBLIC.SERVICE.LIB.Helpers
             _platformConfig = new Platform.Api.Client.Client.Configuration
             {
                 BasePath = _config["AppSettings:PlatformRestApiUrl"],
-                Username = HMACApiDefaults.PlatformClientId,
-                Password = HMACApiDefaults.PlatformClientSecret
+                Username = HMACApiDefaults.ClientId,
+                Password = HMACApiDefaults.ClientSecret
             };
         }
         public List<ApiKey> GetApiKeys() 

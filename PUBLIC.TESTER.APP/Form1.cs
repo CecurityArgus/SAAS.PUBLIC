@@ -31,14 +31,14 @@ namespace Public_Client_Test
             {
                 //creating config object for api
                 var configuration = new Public.Api.Client.Client.Configuration();
-                configuration.AddDefaultHeader("x-apikey", txtApiKey.Text);
+                configuration.DefaultHeaders.Add("X-ApiKey", txtApiKey.Text);
                 configuration.BasePath = publicUri.Text;
 
                 //creating instance
                 _authenticationApi = new Public.Api.Client.Api.AuthenticationApi(configuration);
 
                 //executing login
-                _mdlAuthenticated = _authenticationApi.Authenticate(new Public.Api.Client.Model.MdlLogonUser
+                _mdlAuthenticated = _authenticationApi.PublicAuthenticationAuthenticatePost(new Public.Api.Client.Model.MdlLogonUser
                                                                     {
                                                                         Username = txtUserName.Text,
                                                                         Password = txtPassword.Text
@@ -49,7 +49,7 @@ namespace Public_Client_Test
                 //grpLogin.Enabled      =  false;
                 grpUpoad.Enabled      =  true;
             }
-            catch (Exception e)
+            catch (System.Exception e)
             {
                 AddText($"\nERROR: {e.Source}\n{e.Message}\n{e.InnerException}\n{e.StackTrace}", true);
             }
@@ -86,7 +86,7 @@ namespace Public_Client_Test
                     txtFiles.AppendText(file + "; ");
                 }
             }
-            catch (Exception e)
+            catch (System.Exception e)
             {
                 AddText($"\nERROR: {e.Source}\n{e.Message}\n{e.InnerException}\n{e.StackTrace}", true);
             }
@@ -103,7 +103,7 @@ namespace Public_Client_Test
             {
                 //creating config object for api
                 var configuration = new Public.Api.Client.Client.Configuration();
-                configuration.AddDefaultHeader("Authorization", "Bearer " + _mdlAuthenticated.AccessToken);
+                configuration.DefaultHeaders.Add("Authorization", "Bearer " + _mdlAuthenticated.AccessToken);
                 configuration.BasePath = publicUri.Text;
 
                 //creating instance
@@ -129,7 +129,7 @@ namespace Public_Client_Test
                 }
 
                 //register transfer to server
-                var transfer = _uploadApi.BeginOfTransfer(new RegisterBeginOfTransfer
+                var transfer = _uploadApi.PublicUploadBeginOfTransferPost(new RegisterBeginOfTransfer
                                                           {
                                                               SolutionName      = cmbSolutionName.Text,
                                                               SolutionReference = txtSiren.Text,
@@ -137,18 +137,18 @@ namespace Public_Client_Test
                                                           });
 
                 //add transfer reference to Client instance
-                _uploadApi.Configuration.AddDefaultHeader("X-TransferId", transfer.TransferId);
+                _uploadApi.Configuration.DefaultHeaders.Add("X-TransferId", transfer.TransferId);
 
                 //commence upload
                 UploadFiles(transfer);
 
                 //end upload
-                _uploadApi.EndOfTransfer();
+                _uploadApi.PublicUploadEndOfTransferPost();
 
                 //remove transfer Id from header
-                _uploadApi.Configuration.DefaultHeader.Remove("X-TransferId");
+                _uploadApi.Configuration.DefaultHeaders.Remove("X-TransferId");
             }
-            catch (Exception e)
+            catch (System.Exception e)
             {
                 AddText($"\nERROR: {e.Source}\n{e.Message}\n{e.InnerException}\n{e.StackTrace}", true);
             }
@@ -180,7 +180,7 @@ namespace Public_Client_Test
 
                 AddText("\nUpload completed: ");
             }
-            catch (Exception e)
+            catch (System.Exception e)
             {
                 AddText($"\nERROR: {e.Source}\n{e.Message}\n{e.InnerException}\n{e.StackTrace}", true);
             }

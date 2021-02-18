@@ -4,7 +4,7 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 
-namespace PUBLIC.API.Filters
+namespace PUBLIC.API.Helpers
 {
     /// <summary>
     /// Path Parameter Validation Rules Filter

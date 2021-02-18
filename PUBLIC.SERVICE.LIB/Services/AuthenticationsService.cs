@@ -12,6 +12,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace PUBLIC.SERVICE.LIB.Services
 {
@@ -29,7 +30,7 @@ namespace PUBLIC.SERVICE.LIB.Services
         /// <param name="config"></param>
         /// <param name="logger"></param>
         /// <param name="apiKeys"></param>
-        public AuthenticationsService(IConfiguration config, ILogger logger, ApiKeys apiKeys) 
+        public AuthenticationsService(IConfiguration config, ILogger<AuthenticationsService> logger, ApiKeys apiKeys) 
         {
             _logger = logger;
             _config = config;
@@ -42,7 +43,7 @@ namespace PUBLIC.SERVICE.LIB.Services
         /// <param name="requestAPIKey"></param>
         /// <param name="body"></param>
         /// <returns></returns>
-        public string Authenticate(string requestAPIKey, IdmAccountValidateRequest body)
+        public async Task<string> AuthenticateAsync(string requestAPIKey, IdmAccountValidateRequest body)
         {
             string token = null;
 
@@ -69,7 +70,7 @@ namespace PUBLIC.SERVICE.LIB.Services
             try
             {
                 var accountsApi = new AccountsApi(_config.GetSection("AppSettings:PlatformRestApiUrl").Value);
-                var response = accountsApi.PlatformAccountsValidatePostWithHttpInfo(body);
+                var response = await accountsApi.PlatformAccountsValidatePostAsyncWithHttpInfo(body);
                 var refreshToken = response.Cookies.Any(a => a.Name.Equals("RefreshToken")) ? response.Cookies.Where(a => a.Name.Equals("RefreshToken")).First().Value.ToString() : "";
 
                 var handler = new JwtSecurityTokenHandler();
@@ -78,9 +79,8 @@ namespace PUBLIC.SERVICE.LIB.Services
                     claims.Add(claim);
 
                 claims.Add(new Claim("IDMAuthToken", response.Data.Token));
-                //claims.Add(new Claim("IDMRefreshToken", Common.Encrypt(refreshToken, apiKey.Secret.Substring(0, 10))));
             }
-            catch (Exception)
+            catch (System.Exception)
             {
                 throw;
             }
@@ -99,7 +99,6 @@ namespace PUBLIC.SERVICE.LIB.Services
             token = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
 
             _logger.LogInformation($"AuthenticationController/Authenticate: Finished. Token: {token}");
-
 
             return token;
         }
