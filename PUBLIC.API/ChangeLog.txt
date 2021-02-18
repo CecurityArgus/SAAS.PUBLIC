@@ -1,10 +1,19 @@
 ﻿[Unreleased]
 
 ### Added
+
+### Changed
+
+### Removed
+
+[v1.2.1 - 2020/02/17]
+
+### Added
 	- Masstransit
 
 ### Changed
 	- Bug with efacture jobs not in validation resolved
+	- Datetime 0001-00-00 00:00:00 on outgoing mails
 
 ### Removed
 
